@@ -293,17 +293,17 @@
       button.disabled = true;
       if (!sample) {
         $("listeningStatus").textContent = !audioBlocks ? "Connecting to the microphone…" : inputPeak > .0000001 ? "Hearing sound — hunting for even ticks…" : "Microphone is quiet — move the phone right next to the clock.";
-      } else if (sample.count < 24) {
-        $("listeningStatus").textContent = `Locked on — ${sample.count} of 24 tick intervals collected`;
+      } else if (sample.count < 60) {
+        $("listeningStatus").textContent = `Locked on — ${sample.count} of 60 tick intervals collected`;
       } else {
-        $("listeningStatus").textContent = "All 24 heard, still uneven — keep the phone very still…";
+        $("listeningStatus").textContent = "All 60 heard, still uneven — keep the phone very still…";
       }
       if (sample) {
         $("listenMeter").hidden = false;
-        $("listenMeterFill").style.width = Math.min(100, sample.count / 24 * 100) + "%";
+        $("listenMeterFill").style.width = Math.min(100, sample.count / 60 * 100) + "%";
         $("readingPanel").hidden = false;
         $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
-        $("rateLabel").textContent = `beats/hour — live, from ${sample.count} of 24 tick intervals`;
+        $("rateLabel").textContent = `beats/hour — live, from ${sample.count} of 60 tick intervals`;
       }
     } else if (mode === "adjust") {
       $("stepLabel").textContent = "Adjust your clock";
@@ -329,9 +329,9 @@
     } else if (candidate) {
       $("stepLabel").textContent = "Step 2 of 3";
       $("phaseTitle").textContent = "Rhythm saved — pre-adjust or mark the start.";
-      $("phaseDescription").textContent = `Your clock runs about ${candidate.bph.toFixed(1)} beats/hour. If it’s minutes per day off, use the rough checker below first. Otherwise tap “Cuckoo now” as the first call starts on a whole hour — that marks the start of the 24-hour check.`;
+      $("phaseDescription").textContent = "About " + Math.round(candidate.bph) + " beats/hour saved. For a pre-adjustment, use the rough checker below. Otherwise press the button when the cuckoo sings on a whole hour — that starts the 24-hour check.";
       $("readingPanel").hidden = false;
-      $("rateValue").textContent = candidate.bph.toFixed(1);
+      $("rateValue").textContent = Math.round(candidate.bph);
       $("rateLabel").textContent = `beats per hour — saved rhythm, ${candidate.count} tick intervals`;
       $("roughPanel").hidden = false;
       refreshRough();
@@ -370,8 +370,8 @@
     $("roughHours").value = ""; $("roughMinutes").value = "";
     stopAudio(); saveState(); render();
     showNotice(fromAdjust
-      ? "Adjusted rhythm saved. At a whole hour, tap “Cuckoo now — mark the start” to begin the final 24-hour fine-tune check."
-      : `Rhythm saved — about ${candidate.bph.toFixed(1)} beats/hour (${(sample.period / 1000).toFixed(3)} s per tick). Set the hands to the correct time now if you want the rough pre-adjust, then tap “Cuckoo now — mark the start” when the cuckoo calls on a whole hour.`);
+      ? "Adjusted rhythm saved — about " + Math.round(candidate.bph) + " beats/hour. At a whole hour, tap “Cuckoo now — mark the start” to begin the final 24-hour fine-tune check."
+      : "Rhythm saved — about " + Math.round(candidate.bph) + " beats/hour. If you want to do a pre-adjustment, set the correct time now and come back in about 2 hours. Otherwise wait 6–24 hours, come back and press the button when the cuckoo sings.");
     scrollToTop();
   }
   function recordBeat(timestamp) {
@@ -379,11 +379,11 @@
       const interval = timestamp - lastBeatAt;
       if (interval < 150) return;
       if (interval > 5000) intervals = [];
-      else { intervals.push(interval); if (intervals.length > 24) intervals.shift(); }
+      else { intervals.push(interval); if (intervals.length > 60) intervals.shift(); }
     }
     lastBeatAt = timestamp;
     const sample = measured();
-    if (mode === "listen" && sample?.stable && sample.count >= 24) saveSample();
+    if (mode === "listen" && sample?.stable && sample.count >= 60) saveSample();
     else render();
   }
   function drawLoop() {
