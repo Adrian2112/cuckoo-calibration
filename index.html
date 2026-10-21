@@ -33,6 +33,9 @@
     .reading-duo .reading-value { font-size: 34px; }
     .reading-duo .reading-label { margin-top: 3px; }
     .timing { margin: 0 0 20px; font-size: 12px; line-height: 1.6; color: #768172; }
+    .tap-target { width: 100%; min-height: 160px; margin: 2px 0 10px; padding: 16px; border: 2px dashed #9aab82; border-radius: 14px; background: #eef2e6; color: #2c513a; font-size: 17px; font-weight: 700; touch-action: manipulation; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
+    .tap-target:active { background: #dde7cf; }
+    .tap-status { margin: 0 0 14px; color: #6c776e; font-size: 12px; text-align: center; }
     button, input { font: inherit; }
     button { cursor: pointer; }
     .primary { width: 100%; min-height: 52px; padding: 13px 15px; border: 0; border-radius: 12px; background: #2c513a; color: #fff; font-size: 15px; font-weight: 600; }
@@ -109,6 +112,9 @@
       </div>
       <p class="notice" id="notice" role="alert" hidden></p>
       <button class="primary" id="primaryButton" type="button">Start calibration</button>
+      <button class="tap-target" id="tapTarget" type="button" hidden>Tap once per tick</button>
+      <p class="tap-status" id="tapStatus" hidden></p>
+      <button class="restart" id="tapButton" type="button" hidden>Tap the rhythm by hand</button>
       <button class="restart" id="backButton" type="button" hidden>Back without saving</button>
       <button class="restart" id="discardButton" type="button" hidden>Discard this start mark — adjust the bob first</button>
       <button class="restart" id="restartButton" type="button" hidden>Start over</button>
@@ -116,7 +122,7 @@
     <details class="help">
       <summary>How the full calibration works</summary>
       <ol>
-        <li><strong>Measure the rhythm (Step 1).</strong> Put your phone close to the clock in a quiet room. The app listens to the tick–tock intervals and saves your clock’s rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour.</li>
+        <li><strong>Measure the rhythm (Step 1).</strong> Put your phone close to the clock in a quiet room. The app listens to the tick–tock intervals and saves your clock’s rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour. If extra sounds trick the microphone, use “Tap the rhythm by hand” and press the big button once per tick instead.</li>
         <li><strong>Rough pre-adjust (optional).</strong> If the clock is minutes per day off, do a quick correction first: set the hands to the correct time, let it run an hour or two, and enter how far the minute hand wandered in the rough checker. Lower the bob to slow the clock, raise it to speed it up, aiming to get within a couple of minutes per day. Then reset the hands and continue — the 24-hour check does the fine tuning.</li>
         <li><strong>Mark the start (Step 2).</strong> Wait for a cuckoo call on a whole hour, then tap as the first call begins. That moment starts your 24-hour check. The clock does <em>not</em> need to show the correct time: the app compares the clock to itself across the day, so the measured rhythm is what matters.</li>
         <li><strong>Wait (Step 3).</strong> Don’t move the hands or the pendulum. The check unlocks 6 hours after the first tap, but waiting a full day gives the sharpest result — a longer gap turns the same tap uncertainty into a smaller per-day error. You can close this page; your starting mark is saved on this device.</li>
@@ -143,7 +149,7 @@
       // Complete swing pairs accommodate the different lengths of tick and tock.
       const pairs = intervals.slice(1).map((value, i) => (value + intervals[i]) / 2);
       const jitter = pairs.length ? Math.sqrt(pairs.reduce((sum, value) => sum + (value - period) ** 2, 0) / pairs.length) / period : Infinity;
-      return { period, count: intervals.length, stable: intervals.length >= 12 && jitter < .01 };
+      return { period, count: intervals.length, jitter, stable: intervals.length >= 12 && jitter < .01 };
     },
     fromRatio(bph, ratio, elapsedSeconds, timingError) {
       if (!(bph > 0 && ratio > 0 && elapsedSeconds > 0)) throw new Error("This clock reading could not be calculated. Please try again.");
@@ -222,7 +228,7 @@
   }
   let session = read("cuckoo-timed-check"), result = read("cuckoo-timed-result"), candidate = read("cuckoo-baseline-sample");
   let guide = read("cuckoo-rough-proposal");
-  let mode = "idle", starting = false, adjustListening = false, intervals = [], lastBeatAt = null;
+  let mode = "idle", starting = false, adjustListening = false, tapListening = false, tapForAdjust = false, intervals = [], lastBeatAt = null;
   let stream = null, audioContext = null, analyser = null, detector = null, silentOutput = null, timeData = null;
   let animationId = 0;
   let audioBlocks = 0, inputPeak = 0;
@@ -251,6 +257,15 @@
   function showBpmLine(text) {
     $("bpmLine").textContent = text;
     $("bpmLine").hidden = !text;
+  }
+  function showVerdict(sample, target) {
+    $("readingPanel").hidden = false;
+    $("rateValue").hidden = true;
+    $("rateLabel").hidden = true;
+    $("versusRow").hidden = false;
+    $("nowValue").textContent = Math.round(3600000 / sample.period);
+    $("targetValue").textContent = Math.round(target.targetBph);
+    return (3600000 / target.targetBph / sample.period - 1) * 86400;
   }
   function refreshRough() {
     if ($("roughPanel").hidden) return;
@@ -300,10 +315,13 @@
     $("rateLabel").hidden = false;
     $("versusRow").hidden = true;
     $("bpmLine").hidden = true;
+    $("tapTarget").hidden = true;
+    $("tapStatus").hidden = true;
+    $("tapButton").hidden = true;
     $("roughPanel").hidden = true;
     $("listenMeter").hidden = true;
     $("timingText").hidden = true;
-    $("restartButton").hidden = starting || mode === "listen" || mode === "adjust" || !(session || candidate || result);
+    $("restartButton").hidden = starting || mode === "listen" || mode === "adjust" || mode === "tap" || !(session || candidate || result);
     $("discardButton").hidden = true;
     $("backButton").hidden = true;
     $("restartButton").disabled = starting;
@@ -354,24 +372,52 @@
       $("backButton").textContent = "Cancel listening";
     } else if (mode === "adjust") {
       const target = currentTarget(), locked = sample?.stable && sample.count >= 60;
-      const drift = locked && target ? (3600000 / target.targetBph / sample.period - 1) * 86400 : null;
       $("stepLabel").textContent = "Adjust your clock";
       $("phaseTitle").textContent = "Dial in the bob.";
-      if (!locked || drift === null) {
-        $("phaseDescription").textContent = "Tap “Listen” — about 30 seconds with the phone close to the clock. Move the bob between listens; each fresh measurement tells you lower or raise.";
+      $("tapButton").hidden = false;
+      $("tapButton").textContent = "Tap the rhythm by hand";
+      if (!locked || !target) {
+        $("phaseDescription").textContent = "Tap “Listen” — about 30 seconds with the phone close to the clock. Move the bob between listens; each fresh measurement tells you lower or raise. If other sounds fool the microphone, use “Tap the rhythm by hand” instead.";
       } else {
-        const nowBph = 3600000 / sample.period;
-        $("rateValue").hidden = true;
-        $("rateLabel").hidden = true;
-        $("versusRow").hidden = false;
-        $("nowValue").textContent = Math.round(nowBph);
-        $("targetValue").textContent = Math.round(target.targetBph);
+        const drift = showVerdict(sample, target);
         $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a bit to improve, then tap “Listen again”.`;
       }
       button.textContent = locked ? "Listen again" : "Listen now";
       button.disabled = false;
       $("backButton").hidden = false;
       $("backButton").textContent = "Back without saving";
+    } else if (mode === "tap") {
+      $("stepLabel").textContent = tapForAdjust ? "Adjust your clock" : "Step 1 of 3";
+      if (tapListening) {
+        $("phaseTitle").textContent = "Tap with the ticks.";
+        $("phaseDescription").textContent = "Tap the big button once for every tick or tock you hear, in the clock’s rhythm. It saves itself after 40 steady taps. Keep the phone with you — the room stays quiet.";
+        $("tapTarget").hidden = false;
+        $("tapTarget").textContent = "Tap once per tick";
+        $("tapStatus").hidden = false;
+        if (!sample) $("tapStatus").textContent = "Start tapping with the next tick…";
+        else {
+          $("tapStatus").textContent = `${sample.count} of 40 taps — ${sample.jitter < .045 ? "steady rhythm" : "not steady yet — listen closely and tap evenly"}`;
+          $("readingPanel").hidden = false;
+          $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
+          $("rateLabel").textContent = `beats/hour — live, from ${sample.count} taps`;
+        }
+        button.textContent = "Keep tapping the big button";
+        button.disabled = true;
+        $("backButton").hidden = false;
+        $("backButton").textContent = "Cancel tapping";
+      } else {
+        const target = currentTarget();
+        if (target && sample) {
+          const drift = showVerdict(sample, target);
+          $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a bit to improve, then tap again.`;
+        } else {
+          $("phaseDescription").textContent = "The taps weren’t steady enough for a reading. Leave the bob as it is and start again, tapping evenly with the tick sounds.";
+        }
+        button.textContent = "Tap again";
+        button.disabled = false;
+        $("backButton").hidden = false;
+        $("backButton").textContent = "Back without saving";
+      }
     } else if (session) {
       const hours = (Date.now() - session.startedAt) / 3600000;
       const ready = hours >= 6;
@@ -409,11 +455,15 @@
       rateReading(drift);
       showBpmLine(bpmSummary());
       button.textContent = close ? "Check again" : "Check my adjustment";
+      $("tapButton").hidden = false;
+      $("tapButton").textContent = "Tap the rhythm by hand";
     } else {
       $("stepLabel").textContent = "Step 1 of 3";
       $("phaseTitle").textContent = "Let’s listen to your clock.";
-      $("phaseDescription").textContent = "Place your phone close to the clock in a quiet room. We’ll learn its rhythm automatically.";
+      $("phaseDescription").textContent = "Place your phone close to the clock in a quiet room. We’ll learn its rhythm automatically. If other sounds fool the microphone, tap the rhythm by hand instead.";
       button.textContent = "Start calibration";
+      $("tapButton").hidden = false;
+      $("tapButton").textContent = "Tap the rhythm by hand";
     }
   }
   function stopAudio(keep) {
@@ -426,9 +476,10 @@
     if (!keep) mode = "idle";
   }
   function scrollToTop() { window.scrollTo({ top: 0, behavior: "smooth" }); }
-  function saveSample(fromAdjust) {
+  function saveSample(fromAdjust, tap) {
     const sample = measured();
-    if (!sample?.stable) return;
+    const ok = sample && (sample.stable || (tap && sample.count >= 40 && sample.jitter < .045));
+    if (!ok) return;
     candidate = { periodMs: sample.period, bph: 3600000 / sample.period, count: sample.count, savedAt: Date.now() };
     guide = null;
     adjustListening = false;
@@ -456,6 +507,31 @@
     }
     if (mode === "listen" && sample?.stable && sample.count >= 60) saveSample();
     else render();
+  }
+  function startTap(forAdjust) {
+    showNotice("");
+    mode = "tap"; tapForAdjust = forAdjust; tapListening = true;
+    intervals = []; lastBeatAt = null;
+    render();
+  }
+  function recordTap(timestamp) {
+    if (lastBeatAt !== null) {
+      const interval = timestamp - lastBeatAt;
+      if (interval < 150) return;
+      if (interval > 5000) intervals = [];
+      else { intervals.push(interval); if (intervals.length > 60) intervals.shift(); }
+    }
+    lastBeatAt = timestamp;
+    const sample = measured();
+    const tapOk = sample && sample.count >= 40 && sample.jitter < .045;
+    if (tapForAdjust && tapOk) {
+      const target = currentTarget(), tolerance = target ? Math.max(15, target.uncertainty) : 15;
+      const drift = target ? (3600000 / target.targetBph / sample.period - 1) * 86400 : null;
+      if (drift !== null && Math.abs(drift) <= tolerance) { saveSample(true, true); return; }
+      tapListening = false; render(); return;
+    }
+    if (!tapForAdjust && tapOk) { saveSample(false, true); return; }
+    render();
   }
   function drawLoop() {
     if (!analyser || !timeData) return;
@@ -525,6 +601,7 @@
     const now = Date.now();
     showNotice("");
     if (starting || mode === "listen") return;
+    if (mode === "tap") { if (!tapListening) { intervals = []; lastBeatAt = null; tapListening = true; render(); } return; }
     if (mode === "adjust") { if (!adjustListening) return startAudio(true); return; }
     if (session) { finishCheck(now); return; }
     if (candidate) {
@@ -537,10 +614,17 @@
   $("primaryButton").addEventListener("click", primaryAction);
   ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
   $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
+  $("tapButton").addEventListener("click", () => startTap(!!currentTarget()));
+  $("tapTarget").addEventListener("pointerdown", event => {
+    event.preventDefault();
+    if (mode === "tap" && tapListening) recordTap(performance.now());
+  });
+  $("tapTarget").addEventListener("click", event => event.preventDefault());
   $("backButton").addEventListener("click", () => {
     if (starting) return;
     intervals = []; lastBeatAt = null;
     if (mode === "listen") { stopAudio(); render(); return; }
+    if (mode === "tap") { tapListening = false; mode = tapForAdjust ? "adjust" : "idle"; tapForAdjust = false; render(); return; }
     if (mode === "adjust" && adjustListening) { adjustListening = false; stopAudio(true); render(); return; }
     adjustListening = false; mode = "idle"; render();
   });
@@ -553,6 +637,7 @@
   $("restartButton").addEventListener("click", () => {
     if (!window.confirm("Start over and clear this calibration?")) return;
     stopAudio(); session = result = candidate = null; guide = null; intervals = []; lastBeatAt = null;
+    tapListening = false; tapForAdjust = false; mode = "idle";
     showNotice(""); saveState(); render();
   });
   document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
