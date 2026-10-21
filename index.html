@@ -394,8 +394,12 @@
         $("tapTarget").hidden = false;
         $("tapTarget").textContent = "Tap once per tick";
         $("tapStatus").hidden = false;
-        if (!sample) $("tapStatus").textContent = "Start tapping with the next tick…";
-        else {
+        if (!sample) {
+          $("tapStatus").textContent = "Start tapping with the next tick…";
+          $("readingPanel").hidden = false;
+          $("rateValue").textContent = "—";
+          $("rateLabel").textContent = "beats/hour — live, counted from your taps";
+        } else {
           $("tapStatus").textContent = `${sample.count} of 40 taps — ${sample.jitter < .045 ? "steady rhythm" : "not steady yet — listen closely and tap evenly"}`;
           $("readingPanel").hidden = false;
           $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
