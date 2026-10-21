@@ -102,6 +102,7 @@
       </div>
       <p class="notice" id="notice" role="alert" hidden></p>
       <button class="primary" id="primaryButton" type="button">Start calibration</button>
+      <button class="restart" id="discardButton" type="button" hidden>Discard this start mark — adjust the bob first</button>
       <button class="restart" id="restartButton" type="button" hidden>Start over</button>
     </main>
     <details class="help">
@@ -292,6 +293,7 @@
     $("listenMeter").hidden = true;
     $("timingText").hidden = true;
     $("restartButton").hidden = !(session || candidate || result || mode !== "idle");
+    $("discardButton").hidden = true;
     $("restartButton").disabled = starting;
     button.disabled = starting;
     if (starting || mode === "listen") {
@@ -329,10 +331,11 @@
       const ready = hours >= 6;
       $("stepLabel").textContent = "Step 3 of 3";
       $("phaseTitle").textContent = ready ? "Ready for the cuckoo?" : "Let the clock run.";
-      $("phaseDescription").textContent = ready ? "Tap as the first cuckoo call starts on a whole hour — a few seconds after the sound begins is fine. Missed the call? Wait for the next whole hour; any whole-hour call works." : "Don’t touch the hands or the pendulum. Come back after at least 6 hours — overnight is best. When you return, tap as the first cuckoo call starts on a whole hour.";
+      $("phaseDescription").textContent = ready ? "Tap as the first cuckoo call starts on a whole hour — a few seconds after the sound begins is fine. Missed the call? Wait for the next whole hour; any whole-hour call works." : "Don’t touch the hands or the pendulum. Come back after at least 6 hours — overnight is best. When you return, tap as the first cuckoo call starts on a whole hour. Need to adjust the bob? Discard this mark first — the check assumes an unchanged rate.";
       $("timingText").hidden = false;
       const unlockAt = new Date(session.startedAt + 6 * 3600000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       $("timingText").textContent = `Started ${new Date(session.startedAt).toLocaleString()} — ${(Date.now() - session.startedAt) / 3600000 < 10 ? ((Date.now() - session.startedAt) / 3600000).toFixed(1) + " hours so far. " : ""}${hours < 23 ? "The check unlocks at " + unlockAt + ", but overnight gives the sharpest result. " : ""}${storageUnavailable ? "Keep this page open." : "You can close this page and return later."}`;
+      $("discardButton").hidden = false;
       button.textContent = "Cuckoo now — finish the check";
       button.disabled = !ready;
     } else if (candidate) {
@@ -479,6 +482,12 @@
   $("primaryButton").addEventListener("click", primaryAction);
   ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
   $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
+  $("discardButton").addEventListener("click", () => {
+    if (!session) return;
+    if (!window.confirm("Discard this start mark? Your saved beats/hour stays.")) return;
+    session = null; saveState(); render(); scrollToTop();
+    showNotice("Start mark discarded — your rhythm is kept. Rough-adjust with the checker below if you need to, then tap “Cuckoo now — mark the start” again at a whole-hour call.");
+  });
   $("restartButton").addEventListener("click", () => {
     if (!window.confirm("Start over and clear this calibration?")) return;
     stopAudio(); session = result = candidate = null; guide = null; intervals = []; lastBeatAt = null;
