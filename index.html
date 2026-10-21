@@ -61,6 +61,11 @@
     .rough-btn { margin-top: 10px; min-height: 40px; padding: 0 14px; border: 1px solid #cdd6c0; border-radius: 10px; background: #fff; color: #2c513a; font-size: 13px; font-weight: 600; }
     .rough-btn:active { background: #eef2e6; }
     footer { text-align: center; color: #85907f; font-size: 11px; line-height: 1.6; padding: 20px 15px 0; }
+    .history-table { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 13px; }
+    .history-table th, .history-table td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid #eaede1; vertical-align: top; line-height: 1.45; }
+    .history-table th { color: #6c776e; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .history-table td:not(:first-child) { color: #4c5850; }
+    .history-empty { margin: 12px 0 0; color: #768172; font-size: 12px; line-height: 1.6; }
     @media (max-width: 380px) { .page { padding: 24px 14px; } main { padding: 26px 23px; } h1 { font-size: 31px; } }
   </style>
 </head>
@@ -130,6 +135,14 @@
         <li><strong>Adjust.</strong> Raise the pendulum bob (the weight on the pendulum stick) to speed the clock up, lower it to slow it down. Make small moves and let the clock settle for a minute or two; tap “Check my adjustment” to compare the live tick rate against the target, then save and verify again tomorrow.</li>
       </ol>
       <p>You only tap twice in total — at least 6 hours apart (overnight is best), each time right as the first cuckoo sound starts on a whole hour. If a tap is more than about 10 minutes away from a whole-hour call, the check refuses to finish and your starting mark stays saved — just tap again at the next whole-hour call. Also note: a clock more than roughly 10 minutes per day off can’t be measured this way — use the rough pre-adjustment first, then run a check.</p>
+    </details>
+    <details class="help" id="historyBlock">
+      <summary>Your tries so far</summary>
+      <table class="history-table" id="historyTable">
+        <thead><tr><th>When</th><th>Result</th><th>What it means</th></tr></thead>
+        <tbody></tbody>
+      </table>
+      <p class="history-empty" id="historyEmpty" hidden></p>
     </details>
     <footer id="footer">Progress is saved on this device. Audio stays on this device.</footer>
   </div>
@@ -228,6 +241,7 @@
   }
   let session = read("cuckoo-timed-check"), result = read("cuckoo-timed-result"), candidate = read("cuckoo-baseline-sample");
   let guide = read("cuckoo-rough-proposal");
+  let history = read("cuckoo-history"); if (!Array.isArray(history)) history = [];
   let mode = "idle", starting = false, adjustListening = false, tapListening = false, tapForAdjust = false, intervals = [], lastBeatAt = null;
   let stream = null, audioContext = null, analyser = null, detector = null, silentOutput = null, timeData = null;
   let animationId = 0;
@@ -266,6 +280,42 @@
     $("nowValue").textContent = Math.round(3600000 / sample.period);
     $("targetValue").textContent = Math.round(target.targetBph);
     return (3600000 / target.targetBph / sample.period - 1) * 86400;
+  }
+  function appendHistory(entry) {
+    history.push(entry);
+    if (history.length > 100) history = history.slice(-100);
+    write("cuckoo-history", history);
+    renderHistory();
+  }
+  function renderHistory() {
+    const tbody = $("historyTable").tBodies[0];
+    tbody.textContent = "";
+    let prevBph = null;
+    const rows = [];
+    history.forEach(raw => {
+      const entry = { ...raw, bph: Number(raw.bph), off: raw.off == null ? null : Number(raw.off), drift: Number(raw.drift || 0), target: Number(raw.target), hours: Number(raw.hours) };
+      const when = new Date(entry.t).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+      if (entry.k === "rhythm" && entry.bph > 0) {
+        let meaning;
+        if (entry.off !== null && isFinite(entry.off)) {
+          meaning = `⬇️ ${entry.off > 0 ? "fast" : "slow"} by about ${Math.abs(entry.off).toFixed(0)} s per day — ${entry.off > 0 ? "lower" : "raise"} the bob`;
+          if (Math.abs(entry.off) < 15) meaning = "🟢 within reach of the bob — run the 24-hour check";
+        } else if (prevBph !== null) {
+          const delta = Math.round(entry.bph - prevBph);
+          meaning = `about ${Math.abs(delta)} beats/hour ${delta >= 0 ? "faster ⬆️" : "slower ⬇️"} than the try before`;
+        } else {
+          meaning = "first try — nothing to compare with yet";
+        }
+        rows.push(`<tr><td>${when}</td><td><strong>${Math.round(entry.bph)}</strong> beats/hour<br>${entry.src === "taps" ? "by hand" : "microphone"}</td><td>${meaning}</td></tr>`);
+        prevBph = entry.bph;
+      } else if (entry.k === "check") {
+        rows.push(`<tr><td>${when}</td><td><strong>${Math.abs(entry.drift).toFixed(0)}</strong> s per day ${entry.drift > 0 ? "fast" : "slow"}<br>24-hour check, ${entry.hours} h</td><td>${entry.drift > 0 ? "⬇️ lower the bob" : "⬆️ raise the bob"} — target ≈ ${Math.round(entry.target)} beats/hour</td></tr>`);
+      }
+    });
+    $("historyEmpty").hidden = rows.length > 0;
+    $("historyTable").hidden = rows.length === 0;
+    tbody.innerHTML = rows.join("");
+    if (!rows.length) $("historyEmpty").textContent = "No tries yet. Every saved rhythm and every 24-hour check lands here, so you can watch the rate improve.";
   }
   function refreshRough() {
     if ($("roughPanel").hidden) return;
@@ -485,6 +535,9 @@
     const ok = sample && (sample.stable || (tap && sample.count >= 40 && sample.jitter < .045));
     if (!ok) return;
     candidate = { periodMs: sample.period, bph: 3600000 / sample.period, count: sample.count, savedAt: Date.now() };
+    const targetAtSave = currentTarget();
+    const off = targetAtSave ? (3600000 / targetAtSave.targetBph / sample.period - 1) * 86400 : null;
+    appendHistory({ t: candidate.savedAt, k: "rhythm", bph: candidate.bph, src: tap ? "taps" : "mic", off });
     guide = null;
     adjustListening = false;
     $("roughSetAt").value = ""; $("roughSetAt").dataset.baseline = ""; $("roughMinutes").value = "";
@@ -596,6 +649,7 @@
   function finishCheck(endedAt) {
     try {
       result = calibrationMath.hourCheck(session, endedAt);
+      appendHistory({ t: endedAt, k: "check", drift: result.dailyDrift, target: result.targetBph, hours: result.clockHours });
       guide = null;
       session = candidate = null;
       saveState(); render(); scrollToTop();
@@ -641,6 +695,8 @@
   $("restartButton").addEventListener("click", () => {
     if (!window.confirm("Start over and clear this calibration?")) return;
     stopAudio(); session = result = candidate = null; guide = null; intervals = []; lastBeatAt = null;
+    history = [];
+    write("cuckoo-history", history); renderHistory();
     tapListening = false; tapForAdjust = false; mode = "idle";
     showNotice(""); saveState(); render();
   });
@@ -650,6 +706,7 @@
   }
   setInterval(() => { if (mode === "idle" && session) render(); }, 30000);
   render();
+  renderHistory();
 })();
 
   </script>
