@@ -612,12 +612,12 @@
       session = { ...candidate, startedAt: now, method: "hour-mark" };
       candidate = guide = null; saveState(); render(); scrollToTop(); return;
     }
-    if (result) return startAudio(Math.abs(result.dailyDrift || 0) > (result.readingUncertainty || 0));
+    if (result) { mode = "adjust"; render(); return; }
     return startAudio();
   }
   $("primaryButton").addEventListener("click", primaryAction);
   ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
-  $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
+  $("roughCheckBtn").addEventListener("click", () => { if (guide) { mode = "adjust"; render(); } });
   $("tapButton").addEventListener("click", () => startTap(!!currentTarget()));
   $("tapTarget").addEventListener("pointerdown", event => {
     event.preventDefault();
