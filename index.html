@@ -1,0 +1,460 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f5f4ef">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/svg+xml" href="icon.svg">
+  <title>My Cuckoo Clock</title>
+  <style>
+    :root { color-scheme: light; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #233c2d; background: #f5f4ef; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    body { margin: 0; min-width: 320px; }
+    .page { max-width: 510px; margin: 0 auto; padding: 32px 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 30px; }
+    .brand { font-size: 13px; font-weight: 700; letter-spacing: .13em; }
+    .clock-type { color: #748078; font-size: 12px; }
+    main { background: #fffefa; border: 1px solid #e6e6de; border-radius: 24px; padding: 32px; box-shadow: 0 14px 45px #233c2d08; }
+    .clock { width: 70px; height: 91px; margin-bottom: 22px; color: #315a40; }
+    .step { margin: 0 0 8px; color: #72806e; font-size: 11px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+    h1 { margin: 0 0 13px; font-family: Georgia, serif; font-size: 34px; line-height: 1.12; font-weight: 400; letter-spacing: -.025em; }
+    .description { color: #6c776e; font-size: 15px; line-height: 1.6; margin: 0 0 24px; }
+    .signal { background: #1c3c2c; border-radius: 14px; margin: 0 0 20px; padding: 10px 12px; }
+    canvas { width: 100%; height: 80px; display: block; }
+    .listening-status { margin: 4px 0 3px; color: #cbdac9; font-size: 12px; text-align: center; }
+    .reading { padding: 20px 0; margin: 0 0 14px; border-top: 1px solid #e7e9e0; border-bottom: 1px solid #e7e9e0; }
+    .reading-value { font-family: Georgia, serif; font-size: 42px; line-height: 1.1; letter-spacing: -.025em; }
+    .reading-label { color: #6c776e; font-size: 13px; margin-top: 5px; }
+    .timing { margin: 0 0 20px; font-size: 12px; line-height: 1.6; color: #768172; }
+    button, input { font: inherit; }
+    button { cursor: pointer; }
+    .primary { width: 100%; min-height: 52px; padding: 13px 15px; border: 0; border-radius: 12px; background: #2c513a; color: #fff; font-size: 15px; font-weight: 600; }
+    .primary:hover { background: #203f2c; }
+    .primary:disabled { opacity: .55; cursor: default; }
+    .restart { display: block; margin: 17px auto 0; padding: 9px; border: 0; background: transparent; color: #77816f; font-size: 12px; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #a3bc84; outline-offset: 3px; }
+    .notice { padding: 12px; margin: 0 0 16px; background: #f7eee0; border-radius: 10px; color: #78562f; font-size: 13px; line-height: 1.5; }
+    .bpm { margin: 10px 0 0; color: #6c776e; font-size: 12px; line-height: 1.5; }
+    .help { margin-top: 24px; border-top: 1px solid #e7e9e0; padding-top: 14px; }
+    .help summary { cursor: pointer; color: #6c776e; font-size: 13px; font-weight: 600; }
+    .help summary::marker { color: #85907f; }
+    .help ol { margin: 12px 0 0; padding-left: 20px; color: #4c5850; font-size: 13px; line-height: 1.65; display: grid; gap: 10px; }
+    .help p { margin: 12px 0 0; color: #768172; font-size: 12px; line-height: 1.6; }
+    .rough { margin: 0 0 20px; padding: 14px; background: #eef2e6; border-radius: 12px; }
+    .rough-title { margin: 0 0 6px; color: #2c513a; font-size: 12px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .rough-lede { margin: 0 0 12px; color: #5c6a5e; font-size: 12px; line-height: 1.55; }
+    .rough-row { display: flex; gap: 8px; align-items: end; flex-wrap: wrap; }
+    .rough-row label { display: grid; gap: 6px; flex: 1 1 140px; color: #4c5850; font-size: 13px; }
+    .rough-row input, .rough-row select { height: 44px; min-width: 0; border: 1px solid #cdd6c0; border-radius: 10px; padding: 0 10px; background: #fff; font: inherit; font-size: 16px; color: inherit; }
+    .rough-row select { flex: 0 0 86px; }
+    .rough-result { margin: 10px 0 0; color: #233c2d; font-size: 13px; line-height: 1.55; }
+    .rough-btn { margin-top: 10px; min-height: 40px; padding: 0 14px; border: 1px solid #cdd6c0; border-radius: 10px; background: #fff; color: #2c513a; font-size: 13px; font-weight: 600; }
+    .rough-btn:active { background: #eef2e6; }
+    footer { text-align: center; color: #85907f; font-size: 11px; line-height: 1.6; padding: 20px 15px 0; }
+    @media (max-width: 380px) { .page { padding: 24px 14px; } main { padding: 26px 23px; } h1 { font-size: 31px; } }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <header><span class="brand">CUCKOO</span><span class="clock-type">My 8-day clock</span></header>
+    <main>
+      <svg class="clock" viewBox="0 0 70 91" fill="none" aria-hidden="true">
+        <path d="M8 31 35 10 62 31V64H8Z" fill="#e8eddf"/>
+        <path d="M3 31 35 6 67 31" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M24 65v12m22-12v12M35 65v16" stroke="currentColor" stroke-width="2"/>
+        <path d="M21 75h6v10h-6zm22 0h6v10h-6z" fill="#9aab82"/>
+        <circle cx="35" cy="83" r="6" fill="currentColor"/>
+        <circle cx="35" cy="46" r="13" fill="#fffefa" stroke="currentColor" stroke-width="2"/>
+        <path d="M35 37v9l6 3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+        <path d="M31 26v-3a4 4 0 0 1 8 0v3z" fill="currentColor"/>
+      </svg>
+      <p class="step" id="stepLabel">Step 1 of 3</p>
+      <h1 id="phaseTitle">Let’s listen to your clock.</h1>
+      <p class="description" id="phaseDescription">Place your phone close to the clock in a quiet room. We’ll learn its rhythm automatically.</p>
+      <div class="signal" id="signalPanel" hidden>
+        <canvas id="waveform" aria-label="Clock microphone signal"></canvas>
+        <p class="listening-status" id="listeningStatus" role="status">Listening for steady ticks…</p>
+      </div>
+      <div class="reading" id="readingPanel" hidden>
+        <div class="reading-value" id="rateValue"></div>
+        <div class="reading-label" id="rateLabel"></div>
+        <p class="bpm" id="bpmLine" hidden></p>
+      </div>
+      <p class="timing" id="timingText" hidden></p>
+      <div class="rough" id="roughPanel" hidden>
+        <p class="rough-title">Rough pre-adjustment — for a clock that is minutes per day off</p>
+        <p class="rough-lede">Set the hands to the correct time, then come back in about 2 hours. Enter how long it ran and how far the minute hand wandered — the longer it runs, the better this eyes-on estimate gets. The 24-hour check does the fine tuning afterwards.</p>
+        <div class="rough-row">
+          <label>Ran for <input type="number" id="roughHours" inputmode="decimal" min="0.5" max="48" step="0.5" placeholder="2"> hours</label>
+          <label>It is now <input type="number" id="roughMinutes" inputmode="numeric" min="0" step="1" placeholder="2"> minutes</label>
+          <select id="roughSign" aria-label="Fast or slow">
+            <option value="1">fast</option>
+            <option value="-1">slow</option>
+          </select>
+        </div>
+        <p class="rough-result" id="roughResult"></p>
+        <button type="button" class="rough-btn" id="roughCheckBtn" hidden>Check the bob live against this target</button>
+      </div>
+      <details class="help">
+        <summary>How the full calibration works</summary>
+        <ol>
+          <li><strong>Measure the rhythm (Step 1).</strong> Put your phone close to the clock in a quiet room. The app listens to the tick–tock intervals and saves your clock’s rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour.</li>
+          <li><strong>Rough pre-adjust (optional).</strong> If the clock is minutes per day off, do a quick correction first: set the hands to the correct time, let it run an hour or two, and enter how far the minute hand wandered in the rough checker. Lower the bob to slow the clock, raise it to speed it up, aiming to get within a couple of minutes per day. Then reset the hands and continue — the 24-hour check does the fine tuning.</li>
+          <li><strong>Mark the start (Step 2).</strong> Wait for a cuckoo call on a whole hour, then tap as the first call begins. That moment starts your 24-hour check. The clock does <em>not</em> need to show the correct time: the app compares the clock to itself across the day, so the measured rhythm is what matters.</li>
+          <li><strong>Wait (Step 3).</strong> Don’t move the hands or the pendulum. The check unlocks 6 hours after the first tap, but waiting a full day gives the sharpest result — a longer gap turns the same tap uncertainty into a smaller per-day error. You can close this page; your starting mark is saved on this device.</li>
+          <li><strong>Finish the check.</strong> At least 6 hours after your first tap, tap again as the first cuckoo call begins on a whole hour, within a few seconds of the sound starting. The app then calculates how many seconds per day the clock runs fast or slow, and the target beats per hour to aim for.</li>
+          <li><strong>Adjust.</strong> Raise the pendulum bob (the weight on the pendulum stick) to speed the clock up, lower it to slow it down. Make small moves and let the clock settle for a minute or two; tap “Check my adjustment” to compare the live tick rate against the target, then save and verify again tomorrow.</li>
+        </ol>
+        <p>You only tap twice in total — at least 6 hours apart (overnight is best), each time right as the first cuckoo sound starts on a whole hour. If a tap is more than about 10 minutes away from a whole-hour call, the check refuses to finish and your starting mark stays saved — just tap again at the next whole-hour call. Also note: a clock more than roughly 10 minutes per day off can’t be measured this way — use the rough pre-adjustment first, then run a check.</p>
+      </details>
+      <p class="notice" id="notice" role="alert" hidden></p>
+      <button class="primary" id="primaryButton" type="button">Start calibration</button>
+      <button class="restart" id="restartButton" type="button" hidden>Start over</button>
+    </main>
+    <footer id="footer">Progress is saved on this device. Audio stays on this device.</footer>
+  </div>
+  <script>
+(() => {
+  /* calibration math */
+  const calibrationMath = {
+    summarize(intervals) {
+      if (!intervals.length) return null;
+      const times = [0];
+      intervals.forEach(value => times.push(times[times.length - 1] + value));
+      const middle = (times.length - 1) / 2;
+      const mean = times.reduce((sum, value) => sum + value, 0) / times.length;
+      let numerator = 0, denominator = 0;
+      times.forEach((time, i) => { numerator += (i - middle) * (time - mean); denominator += (i - middle) ** 2; });
+      const period = numerator / denominator;
+      // Complete swing pairs accommodate the different lengths of tick and tock.
+      const pairs = intervals.slice(1).map((value, i) => (value + intervals[i]) / 2);
+      const jitter = pairs.length ? Math.sqrt(pairs.reduce((sum, value) => sum + (value - period) ** 2, 0) / pairs.length) / period : Infinity;
+      return { period, count: intervals.length, stable: intervals.length >= 12 && jitter < .01 };
+    },
+    fromRatio(bph, ratio, elapsedSeconds, timingError) {
+      if (!(bph > 0 && ratio > 0 && elapsedSeconds > 0)) throw new Error("This clock reading could not be calculated. Please try again.");
+      const targetBph = bph / ratio;
+      return { dailyDrift: (ratio - 1) * 86400, targetBph, targetPeriod: 3600000 / targetBph, readingUncertainty: timingError / elapsedSeconds * 86400, elapsedSeconds };
+    },
+    hourCheck(session, endedAt) {
+      const elapsedSeconds = (endedAt - session.startedAt) / 1000;
+      const clockHours = Math.round(elapsedSeconds / 3600);
+      if (clockHours < 6) throw new Error("The check needs at least 6 hours between the two taps — a full day gives the sharpest result. Your starting mark is still saved.");
+      if (Math.abs(elapsedSeconds - clockHours * 3600) > 600) throw new Error("That mark doesn’t line up with a whole-hour call. Your starting mark is still saved. Tap again on the first cuckoo call at a whole hour.");
+      return { ...this.fromRatio(session.bph, clockHours * 3600 / elapsedSeconds, elapsedSeconds, 4), clockHours, method: "hour-mark" };
+    },
+    roughCheck(setAgoHours, minutesOff, sign) {
+      if (!(setAgoHours >= 1)) throw new Error("Wait at least 1 hour after setting the hands — sooner, and the estimate is pure guesswork.");
+      if (!(minutesOff > 0)) throw new Error("Enter how many minutes fast or slow the clock is now.");
+      const elapsedSeconds = setAgoHours * 3600;
+      const dailyDrift = sign * minutesOff * 60 / elapsedSeconds * 86400;
+      const uncertainty = 60 * 86400 / elapsedSeconds;
+      return { dailyDrift, uncertainty };
+    }
+  };
+  /* app */
+
+  /* tick detector */
+  class ClockTickDetector {
+    constructor() {
+      this.envelope = 0; this.level = .002; this.lastFrame = -Infinity;
+      this.releaseLevel = .001;
+      this.previousInput = 0; this.firstHighPass = 0; this.previousHighPass = 0; this.secondHighPass = 0;
+      this.armed = true; this.framesSeen = 0; this.binFrames = 0; this.binPeak = 0; this.peaks = []; this.bins = 0;
+    }
+    process(samples, startFrame, sampleRate, onBeat) {
+      const highPass = Math.exp(-2 * Math.PI * 300 / sampleRate);
+      for (let i = 0; i < samples.length; i++) {
+        this.framesSeen++;
+        // Remove microphone offset and low-frequency hum before finding clicks.
+        this.firstHighPass = highPass * (this.firstHighPass + samples[i] - this.previousInput);
+        this.previousInput = samples[i];
+        this.secondHighPass = highPass * (this.secondHighPass + this.firstHighPass - this.previousHighPass);
+        this.previousHighPass = this.firstHighPass;
+        this.envelope += (Math.abs(this.secondHighPass) - this.envelope) * .08;
+        this.binPeak = Math.max(this.binPeak, this.envelope);
+        this.binFrames++;
+        if (this.binFrames >= 1024) {
+          this.peaks.push(this.binPeak);
+          if (this.peaks.length > 144) this.peaks.shift();
+          this.binPeak = 0; this.binFrames = 0; this.bins++;
+          if (this.bins % 24 === 0 && this.peaks.length >= 48) {
+            const sorted = [...this.peaks].sort((a,b) => a-b);
+            const floor = sorted[Math.floor(sorted.length * .2)];
+            const peak = sorted[Math.floor(sorted.length * .98)];
+            const desired = Math.max(.00000001, floor * 1.25, floor + (peak - floor) * .3);
+            this.level = this.framesSeen < sampleRate * 2 ? desired : this.level * .75 + desired * .25;
+            this.releaseLevel = floor + Math.max(0, this.level - floor) * .2;
+          }
+        }
+        if (this.framesSeen < sampleRate * 2) continue;
+        if (this.envelope < this.releaseLevel) this.armed = true;
+        const frame = startFrame + i;
+        if (this.armed && this.envelope >= this.level && frame - this.lastFrame > sampleRate * .12) {
+          this.lastFrame = frame; this.armed = false;
+          onBeat(frame / sampleRate * 1000);
+        }
+      }
+    }
+  }
+  /* detector end */
+
+  const $ = id => document.getElementById(id);
+  function read(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (_) { return null; } }
+  let storageUnavailable = false;
+  function write(key, value) {
+    try { if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, JSON.stringify(value)); }
+    catch (_) { storageUnavailable = true; $("footer").textContent = "This browser could not save your progress. Keep this page open or allow site storage."; }
+  }
+  let session = read("cuckoo-timed-check"), result = read("cuckoo-timed-result"), candidate = read("cuckoo-baseline-sample");
+  let guide = read("cuckoo-rough-proposal");
+  let mode = "idle", starting = false, intervals = [], lastBeatAt = null;
+  let stream = null, audioContext = null, analyser = null, detector = null, silentOutput = null, timeData = null;
+  let animationId = 0;
+  let audioBlocks = 0, inputPeak = 0;
+  const canvas = $("waveform"), ctx = canvas.getContext("2d");
+  function saveState() { write("cuckoo-timed-check", session); write("cuckoo-timed-result", result); write("cuckoo-baseline-sample", candidate); write("cuckoo-rough-proposal", guide); }
+  function measured() { return calibrationMath.summarize(intervals); }
+  function showNotice(message) { $("notice").textContent = message || ""; $("notice").hidden = !message; }
+  function currentTarget() {
+    if (guide && guide.targetBph > 0) return { targetBph: guide.targetBph, uncertainty: 0, fromProposal: true };
+    if (result && result.targetBph > 0) return { targetBph: result.targetBph, uncertainty: result.readingUncertainty || 0, fromProposal: false };
+    return null;
+  }
+  function liveDrift() { const sample = measured(), target = currentTarget(); return sample && target ? (3600000 / target.targetBph / sample.period - 1) * 86400 : null; }
+  function rateReading(drift) {
+    $("readingPanel").hidden = false;
+    $("rateValue").textContent = Math.abs(drift).toFixed(1);
+    $("rateLabel").textContent = Math.abs(drift) < 1 ? "seconds per day from your target" : drift > 0 ? "seconds fast per day" : "seconds slow per day";
+  }
+  function bpmSummary(nowBph) {
+    const target = currentTarget();
+    if (!target) return "";
+    let text = `Target: ${target.targetBph.toFixed(1)} beats/hour (${(3600000 / target.targetBph / 1000).toFixed(3)} s per tick)${target.fromProposal ? " — rough pre-adjustment proposal" : ""}`;
+    if (nowBph > 0) text += ` · Now: ${nowBph.toFixed(1)} beats/hour`;
+    return text;
+  }
+  function showBpmLine(text) {
+    $("bpmLine").textContent = text;
+    $("bpmLine").hidden = !text;
+  }
+  function refreshRough() {
+    if ($("roughPanel").hidden) return;
+    const hours = parseFloat($("roughHours").value), minutes = parseFloat($("roughMinutes").value);
+    const out = $("roughResult");
+    if (!(hours || minutes)) {
+      out.textContent = "Set the hands to the correct time now. Later, enter how long it ran and how far it wandered.";
+      $("roughCheckBtn").hidden = true;
+      return;
+    }
+    try {
+      const estimate = calibrationMath.roughCheck(hours, minutes, Number($("roughSign").value));
+      const perDay = Math.abs(estimate.dailyDrift), slop = estimate.uncertainty;
+      const direction = estimate.dailyDrift > 0 ? "Lower the pendulum bob to slow it." : "Raise the pendulum bob to speed it up.";
+      if (perDay <= 120) {
+        guide = null; saveState();
+        out.textContent = `About ${perDay < 60 ? (perDay / 60).toFixed(1) + " seconds" : (perDay / 60).toFixed(1) + " minutes"} per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} — small enough that the eye can’t judge better anyway. Keep the bob where it is, set the hands back to the correct time if you like, and tap the button when the cuckoo calls on a whole hour.`;
+      } else if (perDay <= slop) {
+        guide = null; saveState();
+        out.textContent = `About ${(perDay / 60).toFixed(1)} minutes per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} (±${Math.ceil(slop / 60)} min at this reading distance) — too small to be sure by eye. ${direction} A small nudge won’t hurt; come back, and when the wander stays tiny, go on to the hour mark.`;
+      } else {
+        const proposed = candidate ? candidate.bph / (1 + estimate.dailyDrift / 86400) : null;
+        let text = `About ${(perDay / 60).toFixed(1)} minutes per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} (±${Math.ceil(slop / 60)} min). ${direction}`;
+        if (proposed) {
+          guide = { targetBph: proposed, proposedAt: Date.now() }; saveState();
+          text += ` A bob setting near ${proposed.toFixed(1)} beats/hour should level it out (now ${candidate.bph.toFixed(1)}). Adjust the bob, then check live so the rate reads close to the target.`;
+        } else text += " Measure the rhythm first for a proposed beats/hour setting.";
+        out.textContent = text;
+      }
+      $("roughCheckBtn").hidden = !guide;
+    } catch (error) { out.textContent = error.message; $("roughCheckBtn").hidden = true; }
+  }
+  function render() {
+    const button = $("primaryButton"), sample = measured();
+    $("signalPanel").hidden = mode === "idle";
+    $("readingPanel").hidden = true;
+    $("bpmLine").hidden = true;
+    $("roughPanel").hidden = true;
+    $("timingText").hidden = true;
+    $("restartButton").hidden = !(session || candidate || result || mode !== "idle");
+    $("restartButton").disabled = starting;
+    button.disabled = starting;
+    if (starting || mode === "listen") {
+      $("stepLabel").textContent = "Step 1 of 3";
+      $("phaseTitle").textContent = "Listening to your clock…";
+      $("phaseDescription").textContent = "Keep your phone close to the clock in a quiet room. We’ll save its rhythm automatically.";
+      button.textContent = starting ? "Starting microphone…" : "Listening…";
+      button.disabled = true;
+      $("listeningStatus").textContent = !sample ? !audioBlocks ? "Connecting to the microphone…" : inputPeak > .0000001 ? "Hearing sound — finding the ticks…" : "Microphone is quiet. Move your phone closer." : sample.count < 24 ? `${sample.count} of 24 tick intervals` : "Move your phone closer so the ticks are clearer.";
+    } else if (mode === "adjust") {
+      $("stepLabel").textContent = "Adjust your clock";
+      $("phaseTitle").textContent = "Small changes are best.";
+      const drift = liveDrift(), target = currentTarget(), ready = sample?.stable;
+      $("phaseDescription").textContent = !ready ? "Wait for a steady reading. After each small adjustment, let the clock settle for about 30 seconds." : Math.abs(drift) <= Math.max(5, target.uncertainty) ? "Your clock is close to its target. Save this adjustment and check it again tomorrow." : drift > 0 ? "Lower the pendulum bob a little to slow the clock. Let it settle before making another change." : "Raise the pendulum bob a little to speed up the clock. Let it settle before making another change.";
+      $("listeningStatus").textContent = ready ? "Steady ticks" : "Waiting for steady ticks…";
+      if (ready) rateReading(drift);
+      if (sample) showBpmLine(bpmSummary(3600000 / sample.period));
+      button.textContent = "Save and verify tomorrow";
+      button.disabled = !ready;
+    } else if (session) {
+      const hours = (Date.now() - session.startedAt) / 3600000;
+      const ready = hours >= 6;
+      $("stepLabel").textContent = "Step 3 of 3";
+      $("phaseTitle").textContent = ready ? "Ready for the cuckoo?" : "Let the clock run.";
+      $("phaseDescription").textContent = ready ? "Tap as the first cuckoo call starts on a whole hour — a few seconds after the sound begins is fine. Missed the call? Wait for the next whole hour; any whole-hour call works." : "Don’t touch the hands or the pendulum. Come back after at least 6 hours — overnight is best. When you return, tap as the first cuckoo call starts on a whole hour.";
+      $("timingText").hidden = false;
+      const unlockAt = new Date(session.startedAt + 6 * 3600000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      $("timingText").textContent = `Started ${new Date(session.startedAt).toLocaleString()} — ${(Date.now() - session.startedAt) / 3600000 < 10 ? ((Date.now() - session.startedAt) / 3600000).toFixed(1) + " hours so far. " : ""}${hours < 23 ? "The check unlocks at " + unlockAt + ", but overnight gives the sharpest result. " : ""}${storageUnavailable ? "Keep this page open." : "You can close this page and return later."}`;
+      button.textContent = "Cuckoo started again";
+      button.disabled = !ready;
+    } else if (candidate) {
+      $("stepLabel").textContent = "Step 2 of 3";
+      $("phaseTitle").textContent = "Wait for the next hour.";
+      $("phaseDescription").textContent = "Your clock’s rhythm is saved. Tap below as the first cuckoo call starts at a whole hour.";
+      $("readingPanel").hidden = false;
+      $("rateValue").textContent = candidate.bph.toFixed(1);
+      $("rateLabel").textContent = `beats per hour — saved rhythm, ${candidate.count} tick intervals`;
+      $("roughPanel").hidden = false;
+      refreshRough();
+      button.textContent = "Cuckoo started";
+    } else if (result) {
+      const drift = result.dailyDrift || 0;
+      const close = Math.abs(drift) <= (result.readingUncertainty || 0);
+      $("stepLabel").textContent = "Your result";
+      $("phaseTitle").textContent = close ? "Your clock is close to time." : drift > 0 ? "Your clock is running fast." : "Your clock is running slow.";
+      $("phaseDescription").textContent = close ? "Keep the pendulum where it is. A longer check can make the estimate clearer." : drift > 0 ? "Lower the pendulum bob a little to slow the clock. Then check your adjustment here." : "Raise the pendulum bob a little to speed up the clock. Then check your adjustment here.";
+      rateReading(drift);
+      showBpmLine(bpmSummary());
+      button.textContent = close ? "Check again" : "Check my adjustment";
+    } else {
+      $("stepLabel").textContent = "Step 1 of 3";
+      $("phaseTitle").textContent = "Let’s listen to your clock.";
+      $("phaseDescription").textContent = "Place your phone close to the clock in a quiet room. We’ll learn its rhythm automatically.";
+      button.textContent = "Start calibration";
+    }
+  }
+  function stopAudio() {
+    cancelAnimationFrame(animationId);
+    if (detector) { detector.onaudioprocess = null; detector.disconnect(); }
+    if (silentOutput) silentOutput.disconnect();
+    if (stream) stream.getTracks().forEach(track => track.stop());
+    if (audioContext && audioContext.state !== "closed") audioContext.close().catch(() => {});
+    stream = audioContext = analyser = detector = silentOutput = timeData = null;
+    mode = "idle";
+  }
+  function saveSample() {
+    const sample = measured();
+    if (!sample?.stable) return;
+    candidate = { periodMs: sample.period, bph: 3600000 / sample.period, count: sample.count, savedAt: Date.now() };
+    guide = null;
+    $("roughHours").value = ""; $("roughMinutes").value = "";
+    stopAudio(); saveState(); render();
+  }
+  function recordBeat(timestamp) {
+    if (lastBeatAt !== null) {
+      const interval = timestamp - lastBeatAt;
+      if (interval < 150) return;
+      if (interval > 5000) intervals = [];
+      else { intervals.push(interval); if (intervals.length > 24) intervals.shift(); }
+    }
+    lastBeatAt = timestamp;
+    const sample = measured();
+    if (mode === "listen" && sample?.stable && sample.count >= 24) saveSample();
+    else render();
+  }
+  function drawLoop() {
+    if (!analyser || !timeData) return;
+    analyser.getFloatTimeDomainData(timeData);
+    const rect = canvas.getBoundingClientRect(), ratio = window.devicePixelRatio || 1;
+    if (canvas.width !== Math.round(rect.width * ratio) || canvas.height !== Math.round(rect.height * ratio)) { canvas.width = Math.round(rect.width * ratio); canvas.height = Math.round(rect.height * ratio); }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    ctx.strokeStyle = "#b5d8a5"; ctx.lineWidth = 1.5; ctx.beginPath();
+    const rms = Math.sqrt(timeData.reduce((sum, value) => sum + value * value, 0) / timeData.length);
+    const scale = Math.min(100, .18 / Math.max(.002, rms));
+    for (let i = 0; i < 200; i++) {
+      const x = rect.width * i / 199, value = timeData[Math.floor(i * timeData.length / 200)];
+      const y = rect.height / 2 - Math.max(-1, Math.min(1, value * scale)) * rect.height * .4;
+      if (i) ctx.lineTo(x, y); else ctx.moveTo(x, y);
+    }
+    ctx.stroke(); animationId = requestAnimationFrame(drawLoop);
+  }
+  async function startAudio(adjustment = false) {
+    if (starting) return;
+    showNotice("");
+    if (!navigator.mediaDevices?.getUserMedia) { showNotice("To use the microphone, open this page on localhost or HTTPS in Safari or Chrome."); return; }
+    starting = true; render();
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false, channelCount: 1 } });
+      audioContext = new (window.AudioContext || window.webkitAudioContext)(); await audioContext.resume();
+      if (!audioContext.createScriptProcessor) throw new Error("Please open this page in a current version of Safari or Chrome.");
+      const ticks = new ClockTickDetector(), sampleRate = audioContext.sampleRate;
+      let processedFrames = 0;
+      // Process inline so file:// pages need no cross-origin module. Beat times
+      // use positions in the sample stream; callback timestamps can be zero.
+      detector = audioContext.createScriptProcessor(2048, 1, 1);
+      detector.onaudioprocess = event => {
+        if (mode === "idle") return;
+        const samples = event.inputBuffer.getChannelData(0), startFrame = processedFrames;
+        processedFrames += samples.length;
+        audioBlocks++;
+        inputPeak = samples.reduce((peak, value) => Math.max(peak, Math.abs(value)), 0);
+        ticks.process(samples, startFrame, sampleRate, time => {
+          if (mode !== "idle") recordBeat(time);
+        });
+        if (mode === "listen" && !intervals.length && audioBlocks % 12 === 1) render();
+      };
+      const source = audioContext.createMediaStreamSource(stream);
+      analyser = audioContext.createAnalyser(); analyser.fftSize = 4096; timeData = new Float32Array(analyser.fftSize);
+      source.connect(analyser); source.connect(detector);
+      silentOutput = audioContext.createGain(); silentOutput.gain.value = 0;
+      detector.connect(silentOutput); silentOutput.connect(audioContext.destination);
+      intervals = []; lastBeatAt = null; audioBlocks = 0; inputPeak = 0; mode = adjustment ? "adjust" : "listen";
+      starting = false; render(); drawLoop();
+    } catch (error) {
+      stopAudio();
+      showNotice(error.name === "NotAllowedError" ? "Allow microphone access in your browser, then try again." : error.message || "The microphone could not start. Please try again.");
+    } finally { starting = false; render(); }
+  }
+  function finishCheck(endedAt) {
+    try {
+      result = calibrationMath.hourCheck(session, endedAt);
+      guide = null;
+      session = candidate = null;
+      saveState(); render();
+    } catch (error) { showNotice(error.message); }
+  }
+  function primaryAction() {
+    const now = Date.now();
+    showNotice("");
+    if (starting || mode === "listen") return;
+    if (mode === "adjust") { saveSample(); return; }
+    if (session) { finishCheck(now); return; }
+    if (candidate) {
+      session = { ...candidate, startedAt: now, method: "hour-mark" };
+      candidate = guide = null; saveState(); render(); return;
+    }
+    if (result) return startAudio(Math.abs(result.dailyDrift || 0) > (result.readingUncertainty || 0));
+    return startAudio();
+  }
+  $("primaryButton").addEventListener("click", primaryAction);
+  ["roughHours", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
+  $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
+  $("restartButton").addEventListener("click", () => {
+    if (!window.confirm("Start over and clear this calibration?")) return;
+    stopAudio(); session = result = candidate = null; guide = null; intervals = []; lastBeatAt = null;
+    showNotice(""); saveState(); render();
+  });
+  document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+  if ("serviceWorker" in navigator && (location.protocol === "https:" || location.hostname === "localhost" || location.hostname === "127.0.0.1")) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+  setInterval(() => { if (mode === "idle" && session) render(); }, 30000);
+  render();
+})();
+
+  </script>
+</body>
+</html>
