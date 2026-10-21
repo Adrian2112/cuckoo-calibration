@@ -24,6 +24,8 @@
     .signal { background: #1c3c2c; border-radius: 14px; margin: 0 0 20px; padding: 10px 12px; }
     canvas { width: 100%; height: 80px; display: block; }
     .listening-status { margin: 4px 0 3px; color: #cbdac9; font-size: 12px; text-align: center; }
+    .meter { height: 6px; margin: 0 6px; border-radius: 3px; background: #2c513a; overflow: hidden; }
+    .meter-fill { height: 100%; width: 0; border-radius: 3px; background: #b5d8a5; transition: width .2s ease; }
     .reading { padding: 20px 0; margin: 0 0 14px; border-top: 1px solid #e7e9e0; border-bottom: 1px solid #e7e9e0; }
     .reading-value { font-family: Georgia, serif; font-size: 42px; line-height: 1.1; letter-spacing: -.025em; }
     .reading-label { color: #6c776e; font-size: 13px; margin-top: 5px; }
@@ -76,6 +78,7 @@
       <div class="signal" id="signalPanel" hidden>
         <canvas id="waveform" aria-label="Clock microphone signal"></canvas>
         <p class="listening-status" id="listeningStatus" role="status">Listening for steady ticks…</p>
+        <div class="meter" id="listenMeter" hidden><div class="meter-fill" id="listenMeterFill"></div></div>
       </div>
       <div class="reading" id="readingPanel" hidden>
         <div class="reading-value" id="rateValue"></div>
@@ -277,17 +280,31 @@
     $("readingPanel").hidden = true;
     $("bpmLine").hidden = true;
     $("roughPanel").hidden = true;
+    $("listenMeter").hidden = true;
     $("timingText").hidden = true;
     $("restartButton").hidden = !(session || candidate || result || mode !== "idle");
     $("restartButton").disabled = starting;
     button.disabled = starting;
     if (starting || mode === "listen") {
       $("stepLabel").textContent = "Step 1 of 3";
-      $("phaseTitle").textContent = "Listening to your clock…";
-      $("phaseDescription").textContent = "Keep your phone close to the clock in a quiet room. We’ll save its rhythm automatically.";
-      button.textContent = starting ? "Starting microphone…" : "Listening…";
+      $("phaseTitle").textContent = starting ? "Starting the microphone…" : "Listening to your clock…";
+      $("phaseDescription").textContent = "Keep your phone close to the clock in a quiet room. The waveform, status and live rate below update as ticks arrive.";
+      button.textContent = starting ? "Starting microphone…" : "Listening — saves automatically when steady";
       button.disabled = true;
-      $("listeningStatus").textContent = !sample ? !audioBlocks ? "Connecting to the microphone…" : inputPeak > .0000001 ? "Hearing sound — finding the ticks…" : "Microphone is quiet. Move your phone closer." : sample.count < 24 ? `${sample.count} of 24 tick intervals` : "Move your phone closer so the ticks are clearer.";
+      if (!sample) {
+        $("listeningStatus").textContent = !audioBlocks ? "Connecting to the microphone…" : inputPeak > .0000001 ? "Hearing sound — hunting for even ticks…" : "Microphone is quiet — move the phone right next to the clock.";
+      } else if (sample.count < 24) {
+        $("listeningStatus").textContent = `Locked on — ${sample.count} of 24 tick intervals collected`;
+      } else {
+        $("listeningStatus").textContent = "All 24 heard, still uneven — keep the phone very still…";
+      }
+      if (sample) {
+        $("listenMeter").hidden = false;
+        $("listenMeterFill").style.width = Math.min(100, sample.count / 24 * 100) + "%";
+        $("readingPanel").hidden = false;
+        $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
+        $("rateLabel").textContent = `beats/hour — live, from ${sample.count} of 24 tick intervals`;
+      }
     } else if (mode === "adjust") {
       $("stepLabel").textContent = "Adjust your clock";
       $("phaseTitle").textContent = "Small changes are best.";
@@ -307,18 +324,18 @@
       $("timingText").hidden = false;
       const unlockAt = new Date(session.startedAt + 6 * 3600000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
       $("timingText").textContent = `Started ${new Date(session.startedAt).toLocaleString()} — ${(Date.now() - session.startedAt) / 3600000 < 10 ? ((Date.now() - session.startedAt) / 3600000).toFixed(1) + " hours so far. " : ""}${hours < 23 ? "The check unlocks at " + unlockAt + ", but overnight gives the sharpest result. " : ""}${storageUnavailable ? "Keep this page open." : "You can close this page and return later."}`;
-      button.textContent = "Cuckoo started again";
+      button.textContent = "Cuckoo now — finish the check";
       button.disabled = !ready;
     } else if (candidate) {
       $("stepLabel").textContent = "Step 2 of 3";
-      $("phaseTitle").textContent = "Wait for the next hour.";
-      $("phaseDescription").textContent = "Your clock’s rhythm is saved. Tap below as the first cuckoo call starts at a whole hour.";
+      $("phaseTitle").textContent = "Rhythm saved — pre-adjust or mark the start.";
+      $("phaseDescription").textContent = `Your clock runs about ${candidate.bph.toFixed(1)} beats/hour. If it’s minutes per day off, use the rough checker below first. Otherwise tap “Cuckoo now” as the first call starts on a whole hour — that marks the start of the 24-hour check.`;
       $("readingPanel").hidden = false;
       $("rateValue").textContent = candidate.bph.toFixed(1);
       $("rateLabel").textContent = `beats per hour — saved rhythm, ${candidate.count} tick intervals`;
       $("roughPanel").hidden = false;
       refreshRough();
-      button.textContent = "Cuckoo started";
+      button.textContent = "Cuckoo now — mark the start";
     } else if (result) {
       const drift = result.dailyDrift || 0;
       const close = Math.abs(drift) <= (result.readingUncertainty || 0);
@@ -344,13 +361,18 @@
     stream = audioContext = analyser = detector = silentOutput = timeData = null;
     mode = "idle";
   }
-  function saveSample() {
+  function scrollToTop() { window.scrollTo({ top: 0, behavior: "smooth" }); }
+  function saveSample(fromAdjust) {
     const sample = measured();
     if (!sample?.stable) return;
     candidate = { periodMs: sample.period, bph: 3600000 / sample.period, count: sample.count, savedAt: Date.now() };
     guide = null;
     $("roughHours").value = ""; $("roughMinutes").value = "";
     stopAudio(); saveState(); render();
+    showNotice(fromAdjust
+      ? "Adjusted rhythm saved. At a whole hour, tap “Cuckoo now — mark the start” to begin the final 24-hour fine-tune check."
+      : `Rhythm saved — about ${candidate.bph.toFixed(1)} beats/hour (${(sample.period / 1000).toFixed(3)} s per tick). Set the hands to the correct time now if you want the rough pre-adjust, then tap “Cuckoo now — mark the start” when the cuckoo calls on a whole hour.`);
+    scrollToTop();
   }
   function recordBeat(timestamp) {
     if (lastBeatAt !== null) {
@@ -423,18 +445,18 @@
       result = calibrationMath.hourCheck(session, endedAt);
       guide = null;
       session = candidate = null;
-      saveState(); render();
+      saveState(); render(); scrollToTop();
     } catch (error) { showNotice(error.message); }
   }
   function primaryAction() {
     const now = Date.now();
     showNotice("");
     if (starting || mode === "listen") return;
-    if (mode === "adjust") { saveSample(); return; }
+    if (mode === "adjust") { saveSample(true); return; }
     if (session) { finishCheck(now); return; }
     if (candidate) {
       session = { ...candidate, startedAt: now, method: "hour-mark" };
-      candidate = guide = null; saveState(); render(); return;
+      candidate = guide = null; saveState(); render(); scrollToTop(); return;
     }
     if (result) return startAudio(Math.abs(result.dailyDrift || 0) > (result.readingUncertainty || 0));
     return startAudio();
