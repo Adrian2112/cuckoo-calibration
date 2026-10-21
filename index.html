@@ -120,7 +120,7 @@
       <button class="restart" id="saveAnywayButton" type="button" hidden>Close enough — save this rate</button>
       <button class="tap-target" id="tapTarget" type="button" hidden>Tap once per tick</button>
       <p class="tap-status" id="tapStatus" hidden></p>
-      <button class="restart" id="tapButton" type="button" hidden>Tap the rhythm by hand</button>
+      <button class="restart" id="micButton" type="button" hidden>Use the microphone instead</button>
       <button class="restart" id="backButton" type="button" hidden>Back without saving</button>
       <button class="restart" id="discardButton" type="button" hidden>Discard this start mark — adjust the bob first</button>
       <button class="restart" id="restartButton" type="button" hidden>Start over</button>
@@ -128,7 +128,7 @@
     <details class="help">
       <summary>How the full calibration works</summary>
       <ol>
-        <li><strong>Measure the rhythm (Step 1).</strong> Put your phone close to the clock in a quiet room. The app listens to the tick–tock intervals and saves your clock’s rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour. If extra sounds trick the microphone, use “Tap the rhythm by hand” and press the big button once per tick instead.</li>
+        <li><strong>Measure the rhythm (Step 1).</strong> Press the big button once for every tick or tock, in the clock’s rhythm — 40 even presses and the app saves the rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour. If you’d rather not tap, “Use the microphone instead” listens for about 30 seconds in a quiet room.</li>
         <li><strong>Rough pre-adjust (optional).</strong> If the clock is minutes per day off, do a quick correction first: set the hands to the correct time, let it run an hour or two, and enter how far the minute hand wandered in the rough checker. Lower the bob to slow the clock, raise it to speed it up, aiming to get within a couple of minutes per day. Then reset the hands and continue — the 24-hour check does the fine tuning.</li>
         <li><strong>Mark the start (Step 2).</strong> Wait for a cuckoo call on a whole hour, then tap as the first call begins. That moment starts your 24-hour check. The clock does <em>not</em> need to show the correct time: the app compares the clock to itself across the day, so the measured rhythm is what matters.</li>
         <li><strong>Wait (Step 3).</strong> Don’t move the hands or the pendulum. The check unlocks 6 hours after the first tap, but waiting a full day gives the sharpest result — a longer gap turns the same tap uncertainty into a smaller per-day error. You can close this page; your starting mark is saved on this device.</li>
@@ -369,7 +369,7 @@
     $("tapTarget").hidden = true;
     $("tapTarget").disabled = false;
     $("tapStatus").hidden = true;
-    $("tapButton").hidden = true;
+    $("micButton").hidden = true;
     $("saveAnywayButton").hidden = true;
     $("roughPanel").hidden = true;
     $("listenMeter").hidden = true;
@@ -427,21 +427,21 @@
       const target = currentTarget(), locked = sample?.stable && sample.count >= 60;
       $("stepLabel").textContent = "Adjust your clock";
       $("phaseTitle").textContent = "Dial in the bob.";
-      $("tapButton").hidden = false;
-      $("tapButton").textContent = "Tap the rhythm by hand";
+      $("micButton").hidden = false;
+      $("micButton").textContent = "Use the microphone instead";
       if (!locked || !target) {
-        $("phaseDescription").textContent = "Tap “Listen” — about 30 seconds with the phone close to the clock. Move the bob between listens; each fresh measurement tells you lower or raise. If other sounds fool the microphone, use “Tap the rhythm by hand” instead.";
+        $("phaseDescription").textContent = "Tap the button below once for every tick — 40 even presses give the reading. If you don’t want to tap, “Use the microphone instead” listens for the tick sounds for about 30 seconds.";
       } else {
         const drift = showVerdict(sample, target);
         $("phaseTitle").textContent = "Done — here’s the reading.";
-        if (Math.abs(drift) <= 15) $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a bit to improve, then tap “Listen again”.`;
+        if (Math.abs(drift) <= 15) $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a bit to improve, then tap again.`;
         else {
           $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a bit to improve — or save this rate and let the next 24-hour check trim the rest.`;
           $("saveAnywayButton").hidden = false;
           $("saveAnywayButton").textContent = "Close enough — save this rate";
         }
       }
-      button.textContent = locked ? "Listen again" : "Listen now";
+      button.textContent = locked ? "Tap again" : "Tap to measure";
       button.disabled = false;
       $("backButton").hidden = false;
       $("backButton").textContent = "Back without saving";
@@ -528,16 +528,16 @@
       $("phaseDescription").textContent = close ? "Keep the pendulum where it is. A longer check can make the estimate clearer." : drift > 0 ? "Lower the pendulum bob a little to slow the clock. Then check your adjustment here." : "Raise the pendulum bob a little to speed up the clock. Then check your adjustment here.";
       rateReading(drift);
       showBpmLine(bpmSummary());
-      button.textContent = close ? "Check again" : "Check my adjustment";
-      $("tapButton").hidden = false;
-      $("tapButton").textContent = "Tap the rhythm by hand";
+      button.textContent = "Tap to measure";
+      $("micButton").hidden = false;
+      $("micButton").textContent = "Use the microphone instead";
     } else {
       $("stepLabel").textContent = "Step 1 of 3";
-      $("phaseTitle").textContent = "Let’s listen to your clock.";
-      $("phaseDescription").textContent = "Place your phone close to the clock in a quiet room. We’ll learn its rhythm automatically. If other sounds fool the microphone, tap the rhythm by hand instead.";
-      button.textContent = "Start calibration";
-      $("tapButton").hidden = false;
-      $("tapButton").textContent = "Tap the rhythm by hand";
+      $("phaseTitle").textContent = "Tap with the clock.";
+      $("phaseDescription").textContent = "Press the big button once for every tick or tock, in the clock’s rhythm. 40 even presses measure the rate by themselves. Prefer not to tap? “Use the microphone instead” listens for the tick sounds.";
+      button.textContent = "Start by tapping";
+      $("micButton").hidden = false;
+      $("micButton").textContent = "Use the microphone instead";
     }
   }
   function stopAudio(keep) {
@@ -684,19 +684,18 @@
     showNotice("");
     if (starting || mode === "listen") return;
     if (mode === "tap") { if (!tapListening) { intervals = []; lastBeatAt = null; tapListening = true; render(); } return; }
-    if (mode === "adjust") { if (!adjustListening) return startAudio(true); return; }
+    if (mode === "adjust") { if (!adjustListening) return startTap(true); return; }
     if (session) { finishCheck(now); return; }
     if (candidate) {
       session = { ...candidate, startedAt: now, method: "hour-mark" };
       candidate = guide = null; saveState(); render(); scrollToTop(); return;
     }
-    if (result) { mode = "adjust"; render(); return; }
-    return startAudio();
+    return startTap(!!currentTarget());
   }
   $("primaryButton").addEventListener("click", primaryAction);
   ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
-  $("roughCheckBtn").addEventListener("click", () => { if (guide) { mode = "adjust"; render(); } });
-  $("tapButton").addEventListener("click", () => startTap(!!currentTarget()));
+  $("roughCheckBtn").addEventListener("click", () => { if (guide) startTap(true); });
+  $("micButton").addEventListener("click", () => startAudio(!!currentTarget()));
   $("saveAnywayButton").addEventListener("click", () => {
     if (mode === "adjust" || (mode === "tap" && !tapListening)) saveSample(true, mode === "tap", true);
   });
