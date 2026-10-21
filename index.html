@@ -100,22 +100,22 @@
         <p class="rough-result" id="roughResult"></p>
         <button type="button" class="rough-btn" id="roughCheckBtn" hidden>Check the bob live against this target</button>
       </div>
-      <details class="help">
-        <summary>How the full calibration works</summary>
-        <ol>
-          <li><strong>Measure the rhythm (Step 1).</strong> Put your phone close to the clock in a quiet room. The app listens to the tick–tock intervals and saves your clock’s rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour.</li>
-          <li><strong>Rough pre-adjust (optional).</strong> If the clock is minutes per day off, do a quick correction first: set the hands to the correct time, let it run an hour or two, and enter how far the minute hand wandered in the rough checker. Lower the bob to slow the clock, raise it to speed it up, aiming to get within a couple of minutes per day. Then reset the hands and continue — the 24-hour check does the fine tuning.</li>
-          <li><strong>Mark the start (Step 2).</strong> Wait for a cuckoo call on a whole hour, then tap as the first call begins. That moment starts your 24-hour check. The clock does <em>not</em> need to show the correct time: the app compares the clock to itself across the day, so the measured rhythm is what matters.</li>
-          <li><strong>Wait (Step 3).</strong> Don’t move the hands or the pendulum. The check unlocks 6 hours after the first tap, but waiting a full day gives the sharpest result — a longer gap turns the same tap uncertainty into a smaller per-day error. You can close this page; your starting mark is saved on this device.</li>
-          <li><strong>Finish the check.</strong> At least 6 hours after your first tap, tap again as the first cuckoo call begins on a whole hour, within a few seconds of the sound starting. The app then calculates how many seconds per day the clock runs fast or slow, and the target beats per hour to aim for.</li>
-          <li><strong>Adjust.</strong> Raise the pendulum bob (the weight on the pendulum stick) to speed the clock up, lower it to slow it down. Make small moves and let the clock settle for a minute or two; tap “Check my adjustment” to compare the live tick rate against the target, then save and verify again tomorrow.</li>
-        </ol>
-        <p>You only tap twice in total — at least 6 hours apart (overnight is best), each time right as the first cuckoo sound starts on a whole hour. If a tap is more than about 10 minutes away from a whole-hour call, the check refuses to finish and your starting mark stays saved — just tap again at the next whole-hour call. Also note: a clock more than roughly 10 minutes per day off can’t be measured this way — use the rough pre-adjustment first, then run a check.</p>
-      </details>
       <p class="notice" id="notice" role="alert" hidden></p>
       <button class="primary" id="primaryButton" type="button">Start calibration</button>
       <button class="restart" id="restartButton" type="button" hidden>Start over</button>
     </main>
+    <details class="help">
+      <summary>How the full calibration works</summary>
+      <ol>
+        <li><strong>Measure the rhythm (Step 1).</strong> Put your phone close to the clock in a quiet room. The app listens to the tick–tock intervals and saves your clock’s rate as beats per hour. Every beat is one full swing of the pendulum — a typical 0.5&nbsp;s tick means 7200 beats per hour.</li>
+        <li><strong>Rough pre-adjust (optional).</strong> If the clock is minutes per day off, do a quick correction first: set the hands to the correct time, let it run an hour or two, and enter how far the minute hand wandered in the rough checker. Lower the bob to slow the clock, raise it to speed it up, aiming to get within a couple of minutes per day. Then reset the hands and continue — the 24-hour check does the fine tuning.</li>
+        <li><strong>Mark the start (Step 2).</strong> Wait for a cuckoo call on a whole hour, then tap as the first call begins. That moment starts your 24-hour check. The clock does <em>not</em> need to show the correct time: the app compares the clock to itself across the day, so the measured rhythm is what matters.</li>
+        <li><strong>Wait (Step 3).</strong> Don’t move the hands or the pendulum. The check unlocks 6 hours after the first tap, but waiting a full day gives the sharpest result — a longer gap turns the same tap uncertainty into a smaller per-day error. You can close this page; your starting mark is saved on this device.</li>
+        <li><strong>Finish the check.</strong> At least 6 hours after your first tap, tap again as the first cuckoo call begins on a whole hour, within a few seconds of the sound starting. The app then calculates how many seconds per day the clock runs fast or slow, and the target beats per hour to aim for.</li>
+        <li><strong>Adjust.</strong> Raise the pendulum bob (the weight on the pendulum stick) to speed the clock up, lower it to slow it down. Make small moves and let the clock settle for a minute or two; tap “Check my adjustment” to compare the live tick rate against the target, then save and verify again tomorrow.</li>
+      </ol>
+      <p>You only tap twice in total — at least 6 hours apart (overnight is best), each time right as the first cuckoo sound starts on a whole hour. If a tap is more than about 10 minutes away from a whole-hour call, the check refuses to finish and your starting mark stays saved — just tap again at the next whole-hour call. Also note: a clock more than roughly 10 minutes per day off can’t be measured this way — use the rough pre-adjustment first, then run a check.</p>
+    </details>
     <footer id="footer">Progress is saved on this device. Audio stays on this device.</footer>
   </div>
   <script>
