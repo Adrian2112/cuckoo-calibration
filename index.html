@@ -215,7 +215,7 @@
   }
   let session = read("cuckoo-timed-check"), result = read("cuckoo-timed-result"), candidate = read("cuckoo-baseline-sample");
   let guide = read("cuckoo-rough-proposal");
-  let mode = "idle", starting = false, intervals = [], lastBeatAt = null;
+  let mode = "idle", starting = false, adjustListening = false, intervals = [], lastBeatAt = null;
   let stream = null, audioContext = null, analyser = null, detector = null, silentOutput = null, timeData = null;
   let animationId = 0;
   let audioBlocks = 0, inputPeak = 0;
@@ -287,7 +287,7 @@
   }
   function render() {
     const button = $("primaryButton"), sample = measured();
-    $("signalPanel").hidden = mode === "idle";
+    $("signalPanel").hidden = !(starting || mode === "listen" || (mode === "adjust" && adjustListening));
     $("readingPanel").hidden = true;
     $("bpmLine").hidden = true;
     $("roughPanel").hidden = true;
@@ -320,18 +320,47 @@
       }
       $("backButton").hidden = starting;
       $("backButton").textContent = "Cancel listening";
-    } else if (mode === "adjust") {
+    } else if (mode === "adjust" && adjustListening) {
       $("stepLabel").textContent = "Adjust your clock";
-      $("phaseTitle").textContent = "Small changes are best.";
-      const drift = liveDrift(), target = currentTarget(), ready = sample?.stable;
-      $("phaseDescription").textContent = (!ready ? "Wait for a steady reading. After each small adjustment, let the clock settle for about 30 seconds." : Math.abs(drift) <= Math.max(5, target.uncertainty) ? "Your clock is close to its target. Save this adjustment and check it again tomorrow." : drift > 0 ? "Lower the pendulum bob a little to slow the clock. Let it settle before making another change." : "Raise the pendulum bob a little to speed up the clock. Let it settle before making another change.") + " Remember: every bob change resets the clock’s rate — a 24-hour check only counts after a fresh start mark, so mark the start again once you’re happy here.";
-      $("listeningStatus").textContent = ready ? "Steady ticks" : "Waiting for steady ticks…";
-      if (ready) rateReading(drift);
-      if (sample) showBpmLine(bpmSummary(3600000 / sample.period));
+      $("phaseTitle").textContent = "Listening — measuring the bob.";
+      $("phaseDescription").textContent = "Keep the phone close and the room quiet. The measurement stops by itself after 60 ticks and shows the verdict.";
+      button.textContent = "Listening…";
+      button.disabled = true;
+      if (!sample) {
+        $("listeningStatus").textContent = !audioBlocks ? "Connecting to the microphone…" : inputPeak > .0000001 ? "Hearing sound — hunting for even ticks…" : "Microphone is quiet — move the phone right next to the clock.";
+      } else if (sample.count < 60) {
+        $("listeningStatus").textContent = `Locked on — ${sample.count} of 60 tick intervals collected`;
+      } else {
+        $("listeningStatus").textContent = "All 60 heard, still uneven — keep the phone very still…";
+      }
+      if (sample) {
+        $("listenMeter").hidden = false;
+        $("listenMeterFill").style.width = Math.min(100, sample.count / 60 * 100) + "%";
+        $("readingPanel").hidden = false;
+        $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
+        $("rateLabel").textContent = `beats/hour — live, from ${sample.count} of 60 tick intervals`;
+      }
+      $("backButton").hidden = false;
+      $("backButton").textContent = "Cancel listening";
+    } else if (mode === "adjust") {
+      const target = currentTarget(), locked = sample?.stable && sample.count >= 60;
+      const drift = locked && target ? (3600000 / target.targetBph / sample.period - 1) * 86400 : null;
+      $("stepLabel").textContent = "Adjust your clock";
+      $("phaseTitle").textContent = "Dial in the bob.";
+      if (!locked || drift === null) {
+        $("phaseDescription").textContent = "Tap “Listen” — about 30 seconds with the phone close to the clock. Move the bob between listens; each fresh measurement tells you lower or raise. Every bob change resets the clock’s rate, so mark the start again once you are happy here.";
+      } else {
+        const nowBph = 3600000 / sample.period;
+        $("readingPanel").hidden = false;
+        $("rateValue").textContent = Math.round(nowBph);
+        $("rateLabel").textContent = `beats/hour now — target ≈ ${Math.round(target.targetBph)} beats/hour`;
+        showBpmLine(`That is about ${Math.abs(drift).toFixed(0)} seconds per day ${drift > 0 ? "fast" : "slow"} of the target`);
+        $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a little, let it settle for a moment, then tap “Listen again” for a fresh 30-second measurement. Every bob change resets the clock’s rate — mark the start again once you are happy here.`;
+      }
+      button.textContent = locked ? "Listen again" : "Listen now";
+      button.disabled = false;
       $("backButton").hidden = false;
       $("backButton").textContent = "Back without saving";
-      button.textContent = "Save and verify tomorrow";
-      button.disabled = !ready;
     } else if (session) {
       const hours = (Date.now() - session.startedAt) / 3600000;
       const ready = hours >= 6;
@@ -376,14 +405,14 @@
       button.textContent = "Start calibration";
     }
   }
-  function stopAudio() {
+  function stopAudio(keep) {
     cancelAnimationFrame(animationId);
     if (detector) { detector.onaudioprocess = null; detector.disconnect(); }
     if (silentOutput) silentOutput.disconnect();
     if (stream) stream.getTracks().forEach(track => track.stop());
     if (audioContext && audioContext.state !== "closed") audioContext.close().catch(() => {});
     stream = audioContext = analyser = detector = silentOutput = timeData = null;
-    mode = "idle";
+    if (!keep) mode = "idle";
   }
   function scrollToTop() { window.scrollTo({ top: 0, behavior: "smooth" }); }
   function saveSample(fromAdjust) {
@@ -391,10 +420,11 @@
     if (!sample?.stable) return;
     candidate = { periodMs: sample.period, bph: 3600000 / sample.period, count: sample.count, savedAt: Date.now() };
     guide = null;
+    adjustListening = false;
     $("roughSetAt").value = ""; $("roughSetAt").dataset.baseline = ""; $("roughMinutes").value = "";
     stopAudio(); saveState(); render();
     showNotice(fromAdjust
-      ? "Adjusted rhythm saved — about " + Math.round(candidate.bph) + " beats/hour. At a whole hour, tap “Cuckoo now — mark the start” to begin the final 24-hour fine-tune check."
+      ? "Looks good — the live rate matched the target, about " + Math.round(candidate.bph) + " beats/hour. Saved. At a whole-hour call, tap “Cuckoo now — mark the start” to begin the final 24-hour check."
       : "Rhythm saved — about " + Math.round(candidate.bph) + " beats/hour. If you want to do a pre-adjustment, set the correct time now and come back in about 2 hours. Otherwise wait 6–24 hours, come back and press the button when the cuckoo sings.");
     scrollToTop();
   }
@@ -407,6 +437,12 @@
     }
     lastBeatAt = timestamp;
     const sample = measured();
+    if (mode === "adjust" && adjustListening && sample?.stable && sample.count >= 60) {
+      const target = currentTarget(), tolerance = target ? Math.max(15, target.uncertainty) : 15;
+      const drift = target ? (3600000 / target.targetBph / sample.period - 1) * 86400 : null;
+      if (drift !== null && Math.abs(drift) <= tolerance) { saveSample(true); return; }
+      adjustListening = false; stopAudio(true); render(); return;
+    }
     if (mode === "listen" && sample?.stable && sample.count >= 60) saveSample();
     else render();
   }
@@ -458,9 +494,11 @@
       silentOutput = audioContext.createGain(); silentOutput.gain.value = 0;
       detector.connect(silentOutput); silentOutput.connect(audioContext.destination);
       intervals = []; lastBeatAt = null; audioBlocks = 0; inputPeak = 0; mode = adjustment ? "adjust" : "listen";
+      if (adjustment) adjustListening = true;
       starting = false; render(); drawLoop();
     } catch (error) {
       stopAudio();
+      adjustListening = false;
       showNotice(error.name === "NotAllowedError" ? "Allow microphone access in your browser, then try again." : error.message || "The microphone could not start. Please try again.");
     } finally { starting = false; render(); }
   }
@@ -476,7 +514,7 @@
     const now = Date.now();
     showNotice("");
     if (starting || mode === "listen") return;
-    if (mode === "adjust") { saveSample(true); return; }
+    if (mode === "adjust") { if (!adjustListening) return startAudio(true); return; }
     if (session) { finishCheck(now); return; }
     if (candidate) {
       session = { ...candidate, startedAt: now, method: "hour-mark" };
@@ -488,7 +526,13 @@
   $("primaryButton").addEventListener("click", primaryAction);
   ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
   $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
-  $("backButton").addEventListener("click", () => { stopAudio(); render(); });
+  $("backButton").addEventListener("click", () => {
+    if (starting) return;
+    intervals = []; lastBeatAt = null;
+    if (mode === "listen") { stopAudio(); render(); return; }
+    if (mode === "adjust" && adjustListening) { adjustListening = false; stopAudio(true); render(); return; }
+    adjustListening = false; mode = "idle"; render();
+  });
   $("discardButton").addEventListener("click", () => {
     if (!session) return;
     if (!window.confirm("Discard this start mark? Your saved beats/hour stays.")) return;
