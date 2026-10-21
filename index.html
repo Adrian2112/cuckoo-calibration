@@ -88,7 +88,7 @@
       <p class="timing" id="timingText" hidden></p>
       <div class="rough" id="roughPanel" hidden>
         <p class="rough-title">Rough pre-adjustment — for a clock that is minutes per day off</p>
-        <p class="rough-lede">Set the hands to the correct time, then come back in about 2 hours. Enter how long it ran and how far the minute hand wandered — the longer it runs, the better this eyes-on estimate gets. The 24-hour check does the fine tuning afterwards.</p>
+        <p class="rough-lede">Set the hands to the correct time right after the rhythm is saved, then come back in about 2 hours. “Ran for” is prefilled from the save time for you. Enter how many minutes the minute hand has wandered — the longer it runs, the better this eyes-on estimate gets. The 24-hour check does the fine tuning afterwards.</p>
         <div class="rough-row">
           <label>Ran for <input type="number" id="roughHours" inputmode="decimal" min="0.5" max="48" step="0.5" placeholder="2"> hours</label>
           <label>It is now <input type="number" id="roughMinutes" inputmode="numeric" min="0" step="1" placeholder="2"> minutes</label>
@@ -334,6 +334,11 @@
       $("rateValue").textContent = Math.round(candidate.bph);
       $("rateLabel").textContent = `beats per hour — saved rhythm, ${candidate.count} tick intervals`;
       $("roughPanel").hidden = false;
+      const saveKey = String(candidate.savedAt);
+      if (!$("roughHours").value && $("roughHours").dataset.baseline !== saveKey) {
+        $("roughHours").value = Math.max(0.5, Math.round((Date.now() - candidate.savedAt) / 1800000) / 2);
+        $("roughHours").dataset.baseline = saveKey;
+      }
       refreshRough();
       button.textContent = "Cuckoo now — mark the start";
     } else if (result) {
