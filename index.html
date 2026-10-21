@@ -88,9 +88,9 @@
       <p class="timing" id="timingText" hidden></p>
       <div class="rough" id="roughPanel" hidden>
         <p class="rough-title">Rough pre-adjustment — for a clock that is minutes per day off</p>
-        <p class="rough-lede">Set the hands to the correct time right after the rhythm is saved, then come back in about 2 hours. “Ran for” is prefilled from the save time for you. Enter how many minutes the minute hand has wandered — the longer it runs, the better this eyes-on estimate gets. The 24-hour check does the fine tuning afterwards.</p>
+        <p class="rough-lede">Set the hands to the correct time right after the rhythm is saved — “Hands set at” is prefilled with that moment. Come back in about 2 hours and enter how many minutes the minute hand has wandered. The longer it runs, the better this eyes-on estimate gets. The 24-hour check does the fine tuning afterwards.</p>
         <div class="rough-row">
-          <label>Ran for <input type="number" id="roughHours" inputmode="decimal" min="0.5" max="48" step="0.5" placeholder="2"> hours</label>
+          <label>Hands set at <input type="time" id="roughSetAt"></label>
           <label>It is now <input type="number" id="roughMinutes" inputmode="numeric" min="0" step="1" placeholder="2"> minutes</label>
           <select id="roughSign" aria-label="Fast or slow">
             <option value="1">fast</option>
@@ -245,29 +245,36 @@
   }
   function refreshRough() {
     if ($("roughPanel").hidden) return;
-    const hours = parseFloat($("roughHours").value), minutes = parseFloat($("roughMinutes").value);
+    const setAtValue = $("roughSetAt").value, minutes = parseFloat($("roughMinutes").value);
     const out = $("roughResult");
-    if (!(hours || minutes)) {
-      out.textContent = "Set the hands to the correct time now. Later, enter how long it ran and how far it wandered.";
+    if (!setAtValue && !minutes) {
+      out.textContent = "Set the hands to the correct time now. Later, enter how far the minute hand has wandered.";
       $("roughCheckBtn").hidden = true;
       return;
     }
     try {
-      const estimate = calibrationMath.roughCheck(hours, minutes, Number($("roughSign").value));
+      if (!setAtValue) throw new Error("Enter the time you set the hands to the correct time.");
+      const [setH, setM] = setAtValue.split(":").map(Number);
+      const setMoment = new Date();
+      setMoment.setHours(setH, setM, 0, 0);
+      if (setMoment.getTime() > Date.now()) setMoment.setDate(setMoment.getDate() - 1);
+      const setAgoHours = (Date.now() - setMoment.getTime()) / 3600000;
+      const ago = `Hands set ${setAgoHours < 10 ? setAgoHours.toFixed(1) : Math.round(setAgoHours)} h ago (${setAtValue}). `;
+      const estimate = calibrationMath.roughCheck(setAgoHours, minutes, Number($("roughSign").value));
       const perDay = Math.abs(estimate.dailyDrift), slop = estimate.uncertainty;
       const direction = estimate.dailyDrift > 0 ? "Lower the pendulum bob to slow it." : "Raise the pendulum bob to speed it up.";
       if (perDay <= 120) {
         guide = null; saveState();
-        out.textContent = `About ${perDay < 60 ? (perDay / 60).toFixed(1) + " seconds" : (perDay / 60).toFixed(1) + " minutes"} per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} — small enough that the eye can’t judge better anyway. Keep the bob where it is, set the hands back to the correct time if you like, and tap the button when the cuckoo calls on a whole hour.`;
+        out.textContent = ago + `Wander tells about ${perDay < 60 ? (perDay / 60).toFixed(1) + " seconds" : (perDay / 60).toFixed(1) + " minutes"} per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} — small enough that the eye can’t judge better anyway. Keep the bob where it is, set the hands back to the correct time if you like, and tap the button when the cuckoo calls on a whole hour.`;
       } else if (perDay <= slop) {
         guide = null; saveState();
-        out.textContent = `About ${(perDay / 60).toFixed(1)} minutes per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} (±${Math.ceil(slop / 60)} min at this reading distance) — too small to be sure by eye. ${direction} A small nudge won’t hurt; come back, and when the wander stays tiny, go on to the hour mark.`;
+        out.textContent = ago + `Wander tells about ${(perDay / 60).toFixed(1)} minutes per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} (±${Math.ceil(slop / 60)} min at this reading distance) — too small to be sure by eye. ${direction} A small nudge won’t hurt; come back, and when the wander stays tiny, go on to the hour mark.`;
       } else {
         const proposed = candidate ? candidate.bph / (1 + estimate.dailyDrift / 86400) : null;
-        let text = `About ${(perDay / 60).toFixed(1)} minutes per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} (±${Math.ceil(slop / 60)} min). ${direction}`;
+        let text = ago + `Wander tells about ${(perDay / 60).toFixed(1)} minutes per day ${estimate.dailyDrift > 0 ? "fast" : "slow"} (±${Math.ceil(slop / 60)} min). ${direction}`;
         if (proposed) {
           guide = { targetBph: proposed, proposedAt: Date.now() }; saveState();
-          text += ` A bob setting near ${proposed.toFixed(1)} beats/hour should level it out (now ${candidate.bph.toFixed(1)}). Adjust the bob, then check live so the rate reads close to the target.`;
+          text += ` A bob setting near ${Math.round(proposed)} beats/hour should level it out (now ${Math.round(candidate.bph)}). Adjust the bob, then check live so the rate reads close to the target.`;
         } else text += " Measure the rhythm first for a proposed beats/hour setting.";
         out.textContent = text;
       }
@@ -335,9 +342,10 @@
       $("rateLabel").textContent = `beats per hour — saved rhythm, ${candidate.count} tick intervals`;
       $("roughPanel").hidden = false;
       const saveKey = String(candidate.savedAt);
-      if (!$("roughHours").value && $("roughHours").dataset.baseline !== saveKey) {
-        $("roughHours").value = Math.max(0.5, Math.round((Date.now() - candidate.savedAt) / 1800000) / 2);
-        $("roughHours").dataset.baseline = saveKey;
+      if (!$("roughSetAt").value && $("roughSetAt").dataset.baseline !== saveKey) {
+        const savedTime = new Date(candidate.savedAt);
+        $("roughSetAt").value = String(savedTime.getHours()).padStart(2, "0") + ":" + String(savedTime.getMinutes()).padStart(2, "0");
+        $("roughSetAt").dataset.baseline = saveKey;
       }
       refreshRough();
       button.textContent = "Cuckoo now — mark the start";
@@ -372,7 +380,7 @@
     if (!sample?.stable) return;
     candidate = { periodMs: sample.period, bph: 3600000 / sample.period, count: sample.count, savedAt: Date.now() };
     guide = null;
-    $("roughHours").value = ""; $("roughMinutes").value = "";
+    $("roughSetAt").value = ""; $("roughSetAt").dataset.baseline = ""; $("roughMinutes").value = "";
     stopAudio(); saveState(); render();
     showNotice(fromAdjust
       ? "Adjusted rhythm saved — about " + Math.round(candidate.bph) + " beats/hour. At a whole hour, tap “Cuckoo now — mark the start” to begin the final 24-hour fine-tune check."
@@ -467,7 +475,7 @@
     return startAudio();
   }
   $("primaryButton").addEventListener("click", primaryAction);
-  ["roughHours", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
+  ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
   $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
   $("restartButton").addEventListener("click", () => {
     if (!window.confirm("Start over and clear this calibration?")) return;
