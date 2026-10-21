@@ -29,6 +29,9 @@
     .reading { padding: 20px 0; margin: 0 0 14px; border-top: 1px solid #e7e9e0; border-bottom: 1px solid #e7e9e0; }
     .reading-value { font-family: Georgia, serif; font-size: 42px; line-height: 1.1; letter-spacing: -.025em; }
     .reading-label { color: #6c776e; font-size: 13px; margin-top: 5px; }
+    .reading-duo { display: flex; gap: 26px; }
+    .reading-duo .reading-value { font-size: 34px; }
+    .reading-duo .reading-label { margin-top: 3px; }
     .timing { margin: 0 0 20px; font-size: 12px; line-height: 1.6; color: #768172; }
     button, input { font: inherit; }
     button { cursor: pointer; }
@@ -83,6 +86,10 @@
       <div class="reading" id="readingPanel" hidden>
         <div class="reading-value" id="rateValue"></div>
         <div class="reading-label" id="rateLabel"></div>
+        <div class="reading-duo" id="versusRow" hidden>
+          <div><div class="reading-value" id="nowValue"></div><div class="reading-label">now — beats/hour</div></div>
+          <div><div class="reading-value" id="targetValue"></div><div class="reading-label">target — beats/hour</div></div>
+        </div>
         <p class="bpm" id="bpmLine" hidden></p>
       </div>
       <p class="timing" id="timingText" hidden></p>
@@ -289,6 +296,9 @@
     const button = $("primaryButton"), sample = measured();
     $("signalPanel").hidden = !(starting || mode === "listen" || (mode === "adjust" && adjustListening));
     $("readingPanel").hidden = true;
+    $("rateValue").hidden = false;
+    $("rateLabel").hidden = false;
+    $("versusRow").hidden = true;
     $("bpmLine").hidden = true;
     $("roughPanel").hidden = true;
     $("listenMeter").hidden = true;
@@ -318,7 +328,7 @@
         $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
         $("rateLabel").textContent = `beats/hour — live, from ${sample.count} of 60 tick intervals`;
       }
-      $("backButton").hidden = starting;
+      $("backButton").hidden = false;
       $("backButton").textContent = "Cancel listening";
     } else if (mode === "adjust" && adjustListening) {
       $("stepLabel").textContent = "Adjust your clock";
@@ -348,14 +358,15 @@
       $("stepLabel").textContent = "Adjust your clock";
       $("phaseTitle").textContent = "Dial in the bob.";
       if (!locked || drift === null) {
-        $("phaseDescription").textContent = "Tap “Listen” — about 30 seconds with the phone close to the clock. Move the bob between listens; each fresh measurement tells you lower or raise. Every bob change resets the clock’s rate, so mark the start again once you are happy here.";
+        $("phaseDescription").textContent = "Tap “Listen” — about 30 seconds with the phone close to the clock. Move the bob between listens; each fresh measurement tells you lower or raise.";
       } else {
         const nowBph = 3600000 / sample.period;
-        $("readingPanel").hidden = false;
-        $("rateValue").textContent = Math.round(nowBph);
-        $("rateLabel").textContent = `beats/hour now — target ≈ ${Math.round(target.targetBph)} beats/hour`;
-        showBpmLine(`That is about ${Math.abs(drift).toFixed(0)} seconds per day ${drift > 0 ? "fast" : "slow"} of the target`);
-        $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a little, let it settle for a moment, then tap “Listen again” for a fresh 30-second measurement. Every bob change resets the clock’s rate — mark the start again once you are happy here.`;
+        $("rateValue").hidden = true;
+        $("rateLabel").hidden = true;
+        $("versusRow").hidden = false;
+        $("nowValue").textContent = Math.round(nowBph);
+        $("targetValue").textContent = Math.round(target.targetBph);
+        $("phaseDescription").textContent = `${drift > 0 ? "Lower" : "Raise"} the pendulum bob a bit to improve, then tap “Listen again”.`;
       }
       button.textContent = locked ? "Listen again" : "Listen now";
       button.disabled = false;
