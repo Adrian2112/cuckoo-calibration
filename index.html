@@ -102,6 +102,7 @@
       </div>
       <p class="notice" id="notice" role="alert" hidden></p>
       <button class="primary" id="primaryButton" type="button">Start calibration</button>
+      <button class="restart" id="backButton" type="button" hidden>Back without saving</button>
       <button class="restart" id="discardButton" type="button" hidden>Discard this start mark — adjust the bob first</button>
       <button class="restart" id="restartButton" type="button" hidden>Start over</button>
     </main>
@@ -292,8 +293,9 @@
     $("roughPanel").hidden = true;
     $("listenMeter").hidden = true;
     $("timingText").hidden = true;
-    $("restartButton").hidden = !(session || candidate || result || mode !== "idle");
+    $("restartButton").hidden = starting || mode === "listen" || mode === "adjust" || !(session || candidate || result);
     $("discardButton").hidden = true;
+    $("backButton").hidden = true;
     $("restartButton").disabled = starting;
     button.disabled = starting;
     if (starting || mode === "listen") {
@@ -316,14 +318,18 @@
         $("rateValue").textContent = (3600000 / sample.period).toFixed(1);
         $("rateLabel").textContent = `beats/hour — live, from ${sample.count} of 60 tick intervals`;
       }
+      $("backButton").hidden = starting;
+      $("backButton").textContent = "Cancel listening";
     } else if (mode === "adjust") {
       $("stepLabel").textContent = "Adjust your clock";
       $("phaseTitle").textContent = "Small changes are best.";
       const drift = liveDrift(), target = currentTarget(), ready = sample?.stable;
-      $("phaseDescription").textContent = !ready ? "Wait for a steady reading. After each small adjustment, let the clock settle for about 30 seconds." : Math.abs(drift) <= Math.max(5, target.uncertainty) ? "Your clock is close to its target. Save this adjustment and check it again tomorrow." : drift > 0 ? "Lower the pendulum bob a little to slow the clock. Let it settle before making another change." : "Raise the pendulum bob a little to speed up the clock. Let it settle before making another change.";
+      $("phaseDescription").textContent = (!ready ? "Wait for a steady reading. After each small adjustment, let the clock settle for about 30 seconds." : Math.abs(drift) <= Math.max(5, target.uncertainty) ? "Your clock is close to its target. Save this adjustment and check it again tomorrow." : drift > 0 ? "Lower the pendulum bob a little to slow the clock. Let it settle before making another change." : "Raise the pendulum bob a little to speed up the clock. Let it settle before making another change.") + " Remember: every bob change resets the clock’s rate — a 24-hour check only counts after a fresh start mark, so mark the start again once you’re happy here.";
       $("listeningStatus").textContent = ready ? "Steady ticks" : "Waiting for steady ticks…";
       if (ready) rateReading(drift);
       if (sample) showBpmLine(bpmSummary(3600000 / sample.period));
+      $("backButton").hidden = false;
+      $("backButton").textContent = "Back without saving";
       button.textContent = "Save and verify tomorrow";
       button.disabled = !ready;
     } else if (session) {
@@ -482,6 +488,7 @@
   $("primaryButton").addEventListener("click", primaryAction);
   ["roughSetAt", "roughMinutes", "roughSign"].forEach(id => $(id).addEventListener("input", refreshRough));
   $("roughCheckBtn").addEventListener("click", () => { if (guide) startAudio(true); });
+  $("backButton").addEventListener("click", () => { stopAudio(); render(); });
   $("discardButton").addEventListener("click", () => {
     if (!session) return;
     if (!window.confirm("Discard this start mark? Your saved beats/hour stays.")) return;
